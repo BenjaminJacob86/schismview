@@ -6,7 +6,7 @@ Created on Tue Jan 29 14:52:24 2019
 """
 __author__  = "Benjamin Jacob"
 __license__ = "GNU GPL v2.0"
-__email__ = "benjamin.jacob@hzg.de"
+__email__ = "benjamin.jacob@hereon.de"
 
 
 # make work for old and new io
@@ -18,7 +18,10 @@ __email__ = "benjamin.jacob@hzg.de"
 import sys
 import glob
 import dask
-dask.config.set({"array.slicing.split_large_chunks": True})
+try:
+	dask.config.set({"array.slicing.split_large_chunks": True})
+except:
+	pass	
 import xarray as xr
 import numpy as np
 import scipy
@@ -167,7 +170,7 @@ class Window(tk.Frame):
         w1=((yabc[:,1]-yabc[:,2])*(xq-xabc[:,2])+(xabc[:,2]-xabc[:,1])*(yq-yabc[:,2]))/divisor
         w2=((yabc[:,2]-yabc[:,0])*(xq-xabc[:,2])+(xabc[:,0]-xabc[:,2])*(yq-yabc[:,2]))/divisor
         w3=1-w1-w2
-        bttm=self.ncs['out2d']['bottom_index_node'][0,:].values
+        bttm=self.ncs[self.filetag][self.bindexname][0,:].values
         self.ibttms=np.asarray([(bttm[self.faces[parent[i],:]]).max()-1 for i in range(len(parent)) ],int)
         return parent,np.stack((w1,w2,w3)).transpose() 
 
@@ -203,8 +206,10 @@ class Window(tk.Frame):
                 self.nodevalues=np.ma.masked_array(self.nodevalues,mask=np.isnan(self.nodevalues))
             title=self.varname
 			#use arrows of valocuty for other variables
-            u=self.ncs['horizontalVel']['horizontalVel'][0,self.total_time_index,:,self.lvl]
-            v=self.ncs['horizontalVel']['horizontalVel'][0,self.total_time_index,:,self.lvl]
+            u=self.ncs[self.hvelname][self.hvelname][0,self.total_time_index,:,self.lvl]
+            v=self.ncs[self.hvelname][self.hvelname][0,self.total_time_index,:,self.lvl]
+            u=np.ma.masked_array(u,mask=np.isnan(u))
+            v=np.ma.masked_array(v,mask=np.isnan(v))
 
         elif self.shape==(self.nnodes,):
             self.nodevalues=self.ncs[self.vardict[self.varname]][self.varname][:].values
@@ -214,8 +219,8 @@ class Window(tk.Frame):
         elif self.shape==(self.nt,self.nnodes):
             self.nodevalues=self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:].values
             title=self.varname
-            u=self.ncs['horizontalVel']['horizontalVel'][0,self.total_time_index,:,self.lvl]
-            v=self.ncs['horizontalVel']['horizontalVel'][0,self.total_time_index,:,self.lvl]
+            u=self.ncs[self.hvelname][self.hvelname][0,self.total_time_index,:,self.lvl]
+            v=self.ncs[self.hvelname][self.hvelname][1,self.total_time_index,:,self.lvl]
         elif self.shape==(2,self.nt,self.nnodes): # 2 vector
             u=self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:]
             v=self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:]
@@ -244,7 +249,8 @@ class Window(tk.Frame):
                 self.nodevalues=eval(expr)    
                 
         if self.varname != 'depth':
-            title=self.varname+' @ ' + str(self.reftime + dt.timedelta(seconds=np.int(self.ncs['out2d']['time'][self.total_time_index]))) + ' level= ' + str(lvl)
+            #title=self.varname+' @ ' + str(self.reftime + dt.timedelta(seconds=np.int(self.ncs[self.filetag]['time'][self.total_time_index]))) + ' level= ' + str(lvl)
+            title=self.titlegen(self.lvl)
         else:
             title=self.varname
         # setting colorbar
@@ -278,8 +284,8 @@ class Window(tk.Frame):
             else:
                 vmax=np.double(self.maxfield.get())
 
-            u=u.values
-            v=v.values
+            #u=u.values
+            #v=v.values
             if self.normVar.get()==1:
                 vabs=np.sqrt(u[qloc]*u[qloc]+v[qloc]*v[qloc])			
                 #self.quiver=plt.quiver(np.concatenate((self.x[qloc],(xref,))),np.concatenate((self.y[qloc],(yref,))),np.concatenate((u[qloc]/vabs,(1,))),np.concatenate((v[qloc]/vabs,(0,))),scale=2,scale_units='inches') 
@@ -309,6 +315,14 @@ class Window(tk.Frame):
                 plt.clim(self.clim) # not sure    
             except:
                 pass
+				
+    def titlegen(self,lvl):
+        if self.oldio:
+                return self.varname+' @ ' + str(self.ncs[self.filetag]['time'][self.total_time_index].values)[:16] + ' level= ' + str(lvl)
+        else: # new io
+                return self.varname+' @ ' + str(self.reftime + dt.timedelta(seconds=np.int(self.ncs[self.filetag]['time'][self.total_time_index]))) + ' level= ' + str(lvl)		
+		
+				
     def init_window(self,ncdirsel=None):
         self.pack(fill=tk.BOTH,expand=1)
         self.fig0=len(plt.get_fignums())+1
@@ -326,116 +340,161 @@ class Window(tk.Frame):
             self.combinedDir=filedialog.askdirectory(title='enter schout_*.nc direcory')+'/'
         else:
             self.combinedDir=ncdirsel
-        self.files=[] 
-        for iorder in range(8): # check for schout_nc files until 99999
-            self.files+=glob.glob(self.combinedDir+'out2d_'+'?'*iorder+'.nc')
-        nrs=[int(file[file.rfind('_')+1:file.index('.nc')]) for file in self.files]
-        self.files=list(np.asarray(self.files)[np.argsort(nrs)])
-        nrs=list(np.asarray(nrs)[np.argsort(nrs)])
-        self.nstacks=len(self.files)
-        self.stack0=np.int(nrs[0])
-        print('found ' +str(self.nstacks) +' stack')
+			
+		# new i/o files	
+        if len(glob.glob(self.combinedDir+'out2d_*.nc'))>0:
+            print('found per variable netcdf output format')
+            self.oldio=False
+        elif len(self.combinedDir+'schout_*.nc')>0:
+            print('found schout.nc output format')
+            self.oldio=True
+		
 
-		
-        # file access        
-		# vars # problem sediment
-        varfiles=[file[file.rindex('/')+1:file.rindex('_')] for file in glob.glob(self.combinedDir+'*_'+str(nrs[0])+'.nc') ]
-        self.ncs=dict.fromkeys(varfiles)
-        try:
-            for var in varfiles:
-                self.ncs[var]=xr.concat([ xr.open_dataset(self.combinedDir+var+'_'+str(nr)+'.nc').chunk() for nr in nrs],dim='time')
-        except:	
-            nrs=list(np.asarray(nrs)[np.argsort(nrs)])[:-1]
-            self.nstacks=len(self.files)-1
-            for var in varfiles:
-                self.ncs[var]=xr.concat([ xr.open_dataset(self.combinedDir+var+'_'+str(nr)+'.nc').chunk() for nr in nrs],dim='time')		
-		
-        try:
-            self.stack_size=self.ncs[var].chunksizes['time'][0]
-        except:
-            self.stack_size=self.ncs[var].chunks['time'][0]
-       # load variable list from netcdf #########################################            
-        exclude=['time','SCHISM_hgrid', 'SCHISM_hgrid_face_nodes', 'SCHISM_hgrid_edge_nodes', 'SCHISM_hgrid_node_x',
-     'SCHISM_hgrid_node_y', 'bottom_index_node', 'SCHISM_hgrid_face_x', 'SCHISM_hgrid_face_y', 
-     'ele_bottom_index', 'SCHISM_hgrid_edge_x', 'SCHISM_hgrid_edge_y', 'edge_bottom_index',
-     'sigma', 'dry_value_flag', 'coordinate_system_flag', 'minimum_depth', 'sigma_h_c', 'sigma_theta_b', 
-     'sigma_theta_f', 'sigma_maxdepth', 'Cs', 'dryFlagElement'] # exclude for plot selection
-        vector_vars=[] # stack components for convenience	  
-        self.vardict={} # variable to nc dict relations
-        for nci_key in self.ncs.keys():
-            for vari in self.ncs[nci_key].keys():
+        self.files=[] 		
+        if self.oldio:
+            for iorder in range(6): # check for schout_nc files until 99999
+                self.files+=glob.glob(self.combinedDir+'schout_'+'?'*iorder+'.nc')
+            nrs=[int(file[file.rfind('_')+1:file.index('.nc')]) for file in self.files]
+            self.files=list(np.asarray(self.files)[np.argsort(nrs)])
+            nrs=list(np.asarray(nrs)[np.argsort(nrs)])
+            self.nstacks=len(self.files)
+            print('found ' +str(self.nstacks) +' stack(s)')
+            self.stack0=np.int(nrs[0])
+            
+            # initialize extracion along files # check ofr future if better performance wih xarray
+            self.ncs={'schout':[]}
+            self.ncs['schout']=xr.concat([ xr.open_dataset(self.combinedDir+'schout_'+str(nr)+'.nc').chunk() for nr in nrs],dim='time')
+            self.ncv=self.ncs['schout'].variables
+            try:
+                self.ncs['schout']=xr.concat([ xr.open_dataset(self.combinedDir+'schout_'+str(nr)+'.nc').chunk() for nr in nrs],dim='time')
+            except:
+                print("error loading via MFDataset - time series and hovmoeller diagrams wont work")
+                pass		
+				
+				
+            self.vardict={} # variable to nc dict relations
+			
+           # load variable list from netcdf #########################################            
+            exclude=['time','SCHISM_hgrid', 'SCHISM_hgrid_face_nodes', 'SCHISM_hgrid_edge_nodes', 'SCHISM_hgrid_node_x',
+         'SCHISM_hgrid_node_y', 'bottom_index_node', 'SCHISM_hgrid_face_x', 'SCHISM_hgrid_face_y', 
+         'ele_bottom_index', 'SCHISM_hgrid_edge_x', 'SCHISM_hgrid_edge_y', 'edge_bottom_index',
+         'sigma', 'dry_value_flag', 'coordinate_system_flag', 'minimum_depth', 'sigma_h_c', 'sigma_theta_b', 
+         'sigma_theta_f', 'sigma_maxdepth', 'Cs', 'wetdry_node','wetdry_elem', 'wetdry_side'] # exclude for plot selection
+            vector_vars=[] # stack components for convenience	  
+            self.vardict={} # variable to nc dict relations
+
+            for vari in self.ncv:
                 if vari not in exclude:
-                    self.vardict[vari]=nci_key	
-                if vari[-1] =='Y': 
-                    vector_vars.append(vari[:-1])
-	
-        self.varlist=list(self.vardict.keys())
-
-      # merge vector components
-                #if vari[-1] =='Y': 
-                #    vector_vars.append(vari[:-1])
-                #   varY=vari
-                #    vari_vec=vari[:-1]
-                #    varX=vari_vec+'X'
-                #    self.varlist+=[vari_vec]
-                #    self.vardict[vari_vec]=vari_vec
-
-        for vari_vec in vector_vars:			
-            varX=vari_vec+'X'	  
-            varY=vari_vec+'Y'	  
-            self.varlist+=[vari_vec]
-            self.vardict[vari_vec]=vari_vec
-            self.ncs[vari_vec] ={vari_vec: xr.concat([self.ncs[self.vardict[varX]][varX], self.ncs[self.vardict[varY]][varY]], dim='ivs')}
-
-        #if	'horizontalVelX' in self.varlist:
-        #    #self.ncs['hvel']={'hvel':(self.ncs[self.vardict['horizontalVelX']]['horizontalVelX']**2+self.ncs[self.vardict['horizontalVelY']]['horizontalVelY']**2)**0.5}
-        #    self.varlist+=['hvel']
-        #    self.vardict['hvel']='hvel'
-        #    self.ncs['hvel'] ={'hvel': xr.concat([self.ncs[self.vardict['horizontalVelX']]['horizontalVelX'], self.ncs[self.vardict['horizontalVelY']]['horizontalVelY']], dim='ivs')}
-		#	
-        #if	'windSpeedX' in self.varlist:			
-        #    self.varlist+=['wind']
-        #    self.vardict['wind']='wind'
-        #    self.ncs['wind'] ={'wind': xr.concat([self.ncs[self.vardict['windSpeedX']]['windSpeedX'], self.ncs[self.vardict['windSpeedY']]['windSpeedY']], dim='ivs')}
-        self.varlist=list(np.sort(self.varlist))	
-			#vars=[file.split('/')[1].split('_')[0] for file in glob.glob(combinedDir+'*_'+str(nrs[0])+'.nc') ]
-        #self.file=self.files[0]
-        #self.nc=Dataset(self.file)
-        #self.ncv=self.nc.variables
-        
-        # initialize extracion along files # check ofr future if better performance wih xarray
-        #try:
-        #   self.ncl=MFDataset(self.files[:self.nstacks])    
-        #    self.nclv=self.ncl.variables
-        #except:
-        #    print("error loading via MFDataset - time series and hovmoeller diagrams wont work")
-        #    pass
-        #self.runDir=filedialog.askdirectory(title='enter run directory direcory')+'/'
-        p=param(self.runDir+'/param.nml')
-        self.reftime=dt.datetime(np.int(p.get_parameter('start_year')),
-        np.int(p.get_parameter('start_month')),
-        np.int(p.get_parameter('start_day')),
-        np.int(p.get_parameter('start_hour')),0,0)
-        
-        #self.reftime=dt.datetime.strptime(self.nc['time'].units[14:33],'%Y-%m-%d %H:%M:%S')
-        self.nt,self.nnodes,self.nz,=self.ncs[self.vardict['zCoordinates']]['zCoordinates'].shape
-        self.nodeinds=range(self.nnodes)
-        
-        if self.nt == 1:
-            self.faces=self.ncs['out2d']['SCHISM_hgrid_face_nodes'][:].values-1
-            self.x=self.ncs['out2d']['SCHISM_hgrid_node_x'][:].values
-            self.y=self.ncs['out2d']['SCHISM_hgrid_node_y'][:].values
-        else: # file dimension become cocantenated by files
-            self.faces=self.ncs['out2d']['SCHISM_hgrid_face_nodes'][0,:].values-1
-            self.x=self.ncs['out2d']['SCHISM_hgrid_node_x'][0,:].values
-            self.y=self.ncs['out2d']['SCHISM_hgrid_node_y'][0,:].values
+                    if  self.ncv[vari].shape[-1]==2:
+                        vector_vars.append(vari)		
+                        self.vardict[vari]=vari			
+                        self.ncs[vari] ={vari: xr.concat([self.ncs['schout'][vari].sel(two=0),self.ncs['schout'][vari].sel(two=1)], dim='ivs')}
+                    else:
+                        self.vardict[vari]='schout'		
+            self.varlist=list(self.vardict.keys())
+            self.filetag='schout'			
+            self.bindexname='node_bottom_index'
+            self.zcorname='zcor'			
+            self.dryvarname='wetdry_elem'
+            self.hvelname='hvel'
+			# work around to map old velocity as new velocity formatted
+			# for compability
+            #from IPython import embed; embed() 
+            #self.ncs['horizontalVel'] ={'horizontalVel': xr.concat([self.ncs[self.vardict['hvel']]['hvel'][:,:,:,0], self.ncs[self.vardict['hvel']]['hvel'][:,:,:,1]], dim='ivs')}
+            #self.ncs['horizontalVel'] ={'horizontalVel': xr.concat([self.ncs[self.vardict['hvel']]['hvel'][:,:,:,0], self.ncs[self.vardict['hvel']]['hvel'][:,:,:,1]], #self.varlist.remove('hvel')
+            #self.varlist+=['horizontalVel']
+            #self.vardict.pop('hvel')
+            #print('remanimg hvel to horizontalVel for compability')			            
+            #self.vardict['horizontalVel']='horizontalVel'
+            strdte=[np.float(digit) for digit in self.ncs[self.filetag]['time'].attrs['base_date'].split()]
+            self.reftime=dt.datetime.strptime('{:04.0f}-{:02.0f}-{:02.0f} {:02.0f}:{:02.0f}:{:02.0f}'.format(strdte[0],strdte[1],strdte[2],strdte[3],strdte[3],0),'%Y-%m-%d %H:%M:%S')
+			
+        else: # new io
+            self.hvelname='horizontalVel'
+            self.filetag='out2d'
+            self.bindexname='bottom_index_node'
+            self.zcorname='zCoordinates'
+            self.dryvarname='dryFlagElement'			
+            for iorder in range(8): # check for schout_nc files until 99999
+                self.files+=glob.glob(self.combinedDir+'out2d_'+'?'*iorder+'.nc')
+            nrs=[int(file[file.rfind('_')+1:file.index('.nc')]) for file in self.files]
+            self.files=list(np.asarray(self.files)[np.argsort(nrs)])
+            nrs=list(np.asarray(nrs)[np.argsort(nrs)])
+            self.nstacks=len(self.files)
+            self.stack0=np.int(nrs[0])
+            print('found ' +str(self.nstacks) +' stack(s)')
+    
+    		
+            # file access        
+    		# vars # problem sediment
+            varfiles=[file[file.rindex('/')+1:file.rindex('_')] for file in glob.glob(self.combinedDir+'*_'+str(nrs[0])+'.nc') ]
+            self.ncs=dict.fromkeys(varfiles)
+            try:
+                for var in varfiles:
+                    self.ncs[var]=xr.concat([ xr.open_dataset(self.combinedDir+var+'_'+str(nr)+'.nc').chunk() for nr in nrs],dim='time')
+            except:	
+                nrs=list(np.asarray(nrs)[np.argsort(nrs)])[:-1]
+                self.nstacks=len(self.files)-1
+                for var in varfiles:
+                    self.ncs[var]=xr.concat([ xr.open_dataset(self.combinedDir+var+'_'+str(nr)+'.nc').chunk() for nr in nrs],dim='time')		
 		
 
+           # load variable list from netcdf #########################################            
+            exclude=['time','SCHISM_hgrid', 'SCHISM_hgrid_face_nodes', 'SCHISM_hgrid_edge_nodes', 'SCHISM_hgrid_node_x',
+         'SCHISM_hgrid_node_y', 'bottom_index_node', 'SCHISM_hgrid_face_x', 'SCHISM_hgrid_face_y', 
+         'ele_bottom_index', 'SCHISM_hgrid_edge_x', 'SCHISM_hgrid_edge_y', 'edge_bottom_index',
+         'sigma', 'dry_value_flag', 'coordinate_system_flag', 'minimum_depth', 'sigma_h_c', 'sigma_theta_b', 
+         'sigma_theta_f', 'sigma_maxdepth', 'Cs', 'dryFlagElement'] # exclude for plot selection
+            vector_vars=[] # stack components for convenience	  
+            self.vardict={} # variable to nc dict relations
+            for nci_key in self.ncs.keys():
+                for vari in self.ncs[nci_key].keys():
+                    if vari not in exclude:
+                        self.vardict[vari]=nci_key	
+                    if vari[-1] =='Y': 
+                        vector_vars.append(vari[:-1])
+    	
+            self.varlist=list(self.vardict.keys())
+    
+            for vari_vec in vector_vars:			
+                varX=vari_vec+'X'	  
+                varY=vari_vec+'Y'	  
+                self.varlist+=[vari_vec]
+                self.vardict[vari_vec]=vari_vec
+                self.ncs[vari_vec] ={vari_vec: xr.concat([self.ncs[self.vardict[varX]][varX], self.ncs[self.vardict[varY]][varY]], dim='ivs')}
+    
+            self.varlist=list(np.sort(self.varlist))	
+    
+            p=param(self.runDir+'/param.nml')
+            self.reftime=dt.datetime(np.int(p.get_parameter('start_year')),
+            np.int(p.get_parameter('start_month')),
+            np.int(p.get_parameter('start_day')),
+            np.int(p.get_parameter('start_hour')),0,0)
+            
+            #self.reftime=dt.datetime.strptime(self.nc['time'].units[14:33],'%Y-%m-%d %H:%M:%S')
+        self.nt,self.nnodes,self.nz,=self.ncs[self.vardict[self.zcorname]][self.zcorname].shape
+        self.nodeinds=range(self.nnodes)
+
+			
+        if self.nt == 1:
+            self.faces=np.asarray(self.ncs[self.filetag]['SCHISM_hgrid_face_nodes'][:].values-1,int)
+            self.x=self.ncs[self.filetag]['SCHISM_hgrid_node_x'][:].values
+            self.y=self.ncs[self.filetag]['SCHISM_hgrid_node_y'][:].values
+        else: # file dimension become cocantenated by files
+            self.faces=np.asarray(self.ncs[self.filetag]['SCHISM_hgrid_face_nodes'][0,:].values-1,int)
+            self.x=self.ncs[self.filetag]['SCHISM_hgrid_node_x'][0,:].values
+            self.y=self.ncs[self.filetag]['SCHISM_hgrid_node_y'][0,:].values
+
+        try:
+            self.stack_size=self.ncs[self.filetag].chunksizes['time'][0]
+        except:
+            self.stack_size=self.ncs[self.filetag].chunks['time'][0]
+			
         
         try:
-            lmin = self.ncs['out2d']['bottom_index_node'][0,:].values
+            lmin = self.ncs[self.filetag][self.bindexname][0,:].values
         except:
-            zvar = self.ncs['zCoordinates']['zcor'][0]
+            zvar = self.ncs[self.vardict[self.zcorname]][self.zcorname][0]
             lmin = np.zeros(self.x.shape,dtype='int')
             for i in range(len(self.x)):
                 try:
@@ -443,7 +502,9 @@ class Window(tk.Frame):
                 except:
                     lmin[i] = 0
                     lmin = lmin+1
-        self.ibbtm=self.ncs['out2d']['bottom_index_node'][0,:].values-1    
+        self.ibbtm=self.ncs[self.filetag][self.bindexname][0,:].values-1    
+		
+		
         self.mask3d=np.zeros((self.nnodes,self.nz),bool) # mask for 3d field at one time step
         for inode in range(self.nnodes):
             self.mask3d[inode,:self.ibbtm[inode]]=True # controlled that corresponding z is depths		
@@ -453,12 +514,13 @@ class Window(tk.Frame):
         self.xy_nn_tree = cKDTree([[self.x[i],self.y[i]] for i in range(len(self.x))]) # next neighbour search tree	                                     
         self.ll_nn_tree = cKDTree([[self.lon[i],self.lat[i]] for i in range(len(self.x))]) # next neighbour search		
         self.minavgdist=np.min(np.sqrt(np.abs(np.diff(self.x[self.faces[:,[0,1,2,0]]],axis=1))**2+np.abs(np.diff(self.y[self.faces[:,[0,1,2,0]]],axis=1))**2).mean(axis=1))
-        self.maxavgdist=np.max(np.sqrt(np.abs(np.diff(self.x[self.faces[:,[0,1,2,0]]],axis=1))**2+np.abs(np.diff(self.y[self.faces[:,[0,1,2,0]]],axis=1))**2).mean(axis=1))
+        #from IPython import embed; embed() #self.maxavgdist=np.max(np.sqrt(np.abs(np.diff(self.x[self.faces[:,[0,1,2,0]]],axis=1))**2+np.abs(np.diff(self.y[self.faces[:,[0,1,2,0]]],axis=1))**2).mean(axis=1))
 
         # mesh for mesh visualisazion        
         xy=np.c_[self.x,self.y]
-        self.mesh_tris=xy[self.faces[np.where(self.faces[:,-1]<0)]][:,:3]
+        self.mesh_tris=xy[self.faces[np.where(self.faces[:,-1]<0)][:,:3]]#[:,:3]
         self.mesh_quads=xy[self.faces[np.where(self.faces[:,-1]>-1)]][:,:]
+		
         self.tripc = PolyCollection(self.mesh_tris,facecolors='none',edgecolors='k',linewidth=0.2) #, **kwargs)
         self.hasquads = np.min(self.mesh_quads.shape)>0
         
@@ -484,7 +546,7 @@ class Window(tk.Frame):
              self.faces=self.faces[:,:3]
              self.origins=np.arange(self.faces.shape[0])
         ##########################################  
-        self.dryelems=self.ncs['out2d']['dryFlagElement'][0,:][self.origins]
+        self.dryelems=self.ncs[self.filetag][self.dryvarname][0,:][self.origins]
 
         # next neighbour element look up tree
         self.cx,self.cy=np.mean(self.x[self.faces],axis=1),np.mean(self.y[self.faces],axis=1)
@@ -546,7 +608,7 @@ class Window(tk.Frame):
         #combo.place(x=50, y=50)
         self.combo.grid(row=row,column=0)	
 		
-        levels=[int(k) for k in range(self.ncs[self.vardict['zCoordinates']]['zCoordinates'].shape[2])] #spinwheel
+        levels=[int(k) for k in range(self.ncs[self.vardict[self.zcorname]][self.zcorname].shape[2])] #spinwheel
         self.lvl_tk = tk.IntVar(self,value=str(np.max(levels)))
         self.quiver=0
         self.lvl=levels[-1]   # spinwheel
@@ -736,7 +798,7 @@ class Window(tk.Frame):
         self.plotx,self.ploty=self.x,self.y		
         self.ph,self.ch=self.schism_plotAtelems(self.nodevalues)
         plt.title(self.varname)
-
+        #plt.tight_layout()
         # colormap
         if self.use_cmocean:
             self.cmap.set('deep') # default value						
@@ -809,7 +871,7 @@ class Window(tk.Frame):
         print("selected timestep " +  str(self.ti))
         self.total_time_index=self.ti+self.stack_size*(self.current_stack-self.stack0) 
 		
-        self.dryelems=self.ncs['out2d']['dryFlagElement'][self.total_time_index,:][self.origins]
+        self.dryelems=self.ncs[self.filetag][self.dryvarname][self.total_time_index,:][self.origins]
         self.schism_updateAtelems()
         if self.fig1 in plt.get_fignums() and (self.extract==self.profiles or self.extract==self.transect_callback):
                 self.extract(self.coords)
@@ -839,12 +901,12 @@ class Window(tk.Frame):
         weights=np.zeros((2,self.nnodes))
 		
         # garbage values below ibtm different type , nan or strange values wrong values
-        zcor=self.ncs[self.vardict['zCoordinates']]['zCoordinates'][self.total_time_index,:,:].values#self.ti_tk.get() #self.ncv['zcor']
+        zcor=self.ncs[self.vardict[self.zcorname]][self.zcorname][self.total_time_index,:,:].values#self.ti_tk.get() #self.ncv['zcor']
         zcor=np.ma.masked_array(zcor,mask=self.mask3d)
 		
         a=np.sum(zcor<=dep,1)-1
         #ibelow=a+np.sum(zcor.mask,1)-1
-        ibelow=a+self.ncs['out2d']['bottom_index_node'][0,:].values-1
+        ibelow=a+self.ncs[self.filetag][self.bindexname][0,:].values-1
         #ibelow=a+(self.nc['bottom_index_node'][:]-1)-1
         iabove=np.minimum(ibelow+1,self.nz-1)
         inodes=np.where(a>0)[0]
@@ -929,7 +991,8 @@ class Window(tk.Frame):
                 self.update_plots()
                 plt.figure(self.fig0)
                 self.coords=plt.ginput(n,show_clicks='True')
-                plt.title(self.varname+' @ ' + str(self.reftime + dt.timedelta(seconds=np.int(self.ncs['out2d']['time'][self.total_time_index]))) + ' level= ' + str(self.lvl))
+                plt.title(self.titlegen(self.lvl))
+                #plt.title(self.varname+' @ ' + str(self.reftime + dt.timedelta(seconds=np.int(self.ncs[self.filetag]['time'][self.total_time_index]))) + ' level= ' + str(self.lvl))
             else:
             	self.coords=coords
             # plot coordinates on main figure / remove potential old coordinates
@@ -1013,7 +1076,10 @@ class Window(tk.Frame):
         print('extracting timeseries for ' + self.varname + ' at coordinates: ' + str(self.coords))
         i0,i1=int(self.exfrom.get()),int(self.exto.get())
         #self.t=self.ncs['out2d']['time'][i0:i1].values/86400
-        self.t=np.asarray([self.reftime + dt.timedelta(seconds=ti) for ti in            self.ncs['out2d']['time'].values],np.datetime64)[i0:i1]
+        if self.oldio:
+            self.t=self.ncs['schout']['time'].values
+        else:
+            self.t=np.asarray([self.reftime + dt.timedelta(seconds=ti) for ti in            self.ncs[self.filetag]['time'].values],np.datetime64)[i0:i1]
         
         if self.shape==(self.nt,self.nnodes,self.nz): #3D
             self.ncs[self.vardict[self.varname]][self.varname][:,self.nn,self.lvl]
@@ -1077,7 +1143,7 @@ class Window(tk.Frame):
         if coords==None:
             self.ask_coordinates()
 			
-        zs=self.ncs['zCoordinates']['zCoordinates'][self.total_time_index,self.nn,:].values                        
+        zs=self.ncs[self.zcorname][self.zcorname][self.total_time_index,self.nn,:].values                        
         if self.shape==(self.nt,self.nnodes,self.nz):
             ps=self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,self.nn,:].values
 
@@ -1098,7 +1164,8 @@ class Window(tk.Frame):
         fig2=plt.figure(self.fig1)
         fig2.clf()
         if self.ivs==1:
-            plt.title(str(self.reftime + dt.timedelta(seconds=np.int(self.ncs['out2d']['time'][self.total_time_index].values))))
+            plt.title(self.titlegen(lvl))
+            #plt.title(str(self.reftime + dt.timedelta(seconds=np.int(self.ncs[self.filetag]['time'][self.total_time_index].values))))
             plt.plot(ps,zs)
             plt.ylabel('depth / m')
             plt.xlabel(self.varname)
@@ -1112,7 +1179,7 @@ class Window(tk.Frame):
                 plt.grid()
                 plt.xlabel(self.varname + comps[iplt-1])
                 if iplt==1:
-                    plt.title(str(self.reftime + dt.timedelta(seconds=np.int(self.ncs['out2d']['time'][self.total_time_index].values))))
+                    plt.title(str(self.reftime + dt.timedelta(seconds=np.int(self.ncs[self.filetag]['time'][self.total_time_index].values))))
                     plt.legend(['P'+str(i) for i in range(self.npt)])
                     plt.ylabel('depth / m')
                 else:
@@ -1139,8 +1206,12 @@ class Window(tk.Frame):
         print('extracting hovmoeller for ' + self.varname + ' at coordinates: ' + str(self.coords))
         i0,i1=int(self.exfrom.get()),int(self.exto.get())
 
-        self.zcor=np.squeeze(self.ncs[self.vardict['zCoordinates']]['zCoordinates'][i0:i1,self.nn,:])    
-        self.t=np.asarray([self.reftime + dt.timedelta(seconds=ti) for ti in            self.ncs['out2d']['time'].values],np.datetime64)[i0:i1]
+        self.zcor=np.squeeze(self.ncs[self.vardict[self.zcorname]][self.zcorname][i0:i1,self.nn,:])
+
+        if self.oldio:
+            self.t=self.ncs['schout']['time'].values
+        else:
+            self.t=np.asarray([self.reftime + dt.timedelta(seconds=ti) for ti in            self.ncs[self.filetag]['time'].values],np.datetime64)[i0:i1]
         if self.shape[:3]==(self.nt,self.nnodes,self.nz):
             self.ts=np.squeeze(self.ncs[self.vardict[self.varname]][self.varname][i0:i1,self.nn,:])
         elif self.shape[1:]==(self.nt,self.nnodes,self.nz):#hvel
@@ -1215,7 +1286,8 @@ class Window(tk.Frame):
             ch.set_label(self.varname)
             if self.meshVar.get():
                 plt.plot(self.xs,self.zi,'k',linewidth=0.2)
-        plt.title(str(self.reftime + dt.timedelta(seconds=np.int(self.ncs['out2d']['time'][self.total_time_index]))))
+        plt.title(self.titlegen(np.nan))            		
+        #plt.title(str(self.reftime + dt.timedelta(seconds=np.int(self.ncs[self.filetag]['time'][self.total_time_index]))))
         return ch
 		
 	#def add_quiv(self,dataTrans):	
@@ -1256,7 +1328,7 @@ class Window(tk.Frame):
             #self.zi=np.ma.masked_array(np.zeros((len(self.parents),self.nz)),mask=False)#*np.nan
         #w=self.ndeweights
         is2d = not 'nSCHISM_vgrid_layers'  in  self.ncs[self.vardict[self.varname]][self.varname].dims
-        zcor=self.ncs['zCoordinates']['zCoordinates'][self.total_time_index,:].values
+        zcor=self.ncs[self.vardict[self.zcorname]][self.zcorname][self.total_time_index,:].values
         mask=self.mask3d  | np.isnan(zcor)
         zcor=np.ma.masked_array(zcor,mask=mask)
         if is2d:	
@@ -1414,7 +1486,7 @@ class Window(tk.Frame):
                 plt.clim(self.clim) 
                 plt.xlim((self.xs.min(),self.xs.max()))	
                 if iplt==1:
-                    plt.title(str(self.reftime + dt.timedelta(seconds=np.int(self.ncs['out2d']['time'][self.total_time_index]))))
+                    plt.title(str(self.reftime + dt.timedelta(seconds=np.int(self.ncs[self.filetag]['time'][self.total_time_index]))))
                     #plt.title(str(self.reftime + dt.timedelta(seconds=np.int(self.ncv['time'][self.total_time_index]))))
                 #self.update_plots()	
             #plt.subplot(3,1,3)
@@ -1564,7 +1636,7 @@ class Window(tk.Frame):
     def comp_obs(self,*args):
             ''' plot against observation file '''	
             obsfile=filedialog.askopenfile(title='select observation file',filetypes = (('bp files', '*.nc'),('All files', '*.*'))).name
-            self.dates=np.asarray([self.reftime + dt.timedelta(seconds=ti) for ti in            self.ncs['out2d']['time'].values],np.datetime64)
+            self.dates=np.asarray([self.reftime + dt.timedelta(seconds=ti) for ti in            self.ncs[self.filetag]['time'].values],np.datetime64)
             
             self.obsnc=xr.open_dataset(obsfile)
             self.obsnc=self.obsnc.sel(TIME=slice(self.dates[0],self.dates[-1]))
