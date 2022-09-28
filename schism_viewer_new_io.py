@@ -207,9 +207,9 @@ class Window(tk.Frame):
             title=self.varname
 			#use arrows of valocuty for other variables
             u=self.ncs[self.hvelname][self.hvelname][0,self.total_time_index,:,self.lvl]
-            v=self.ncs[self.hvelname][self.hvelname][0,self.total_time_index,:,self.lvl]
-            u=np.ma.masked_array(u,mask=np.isnan(u))
-            v=np.ma.masked_array(v,mask=np.isnan(v))
+            v=self.ncs[self.hvelname][self.hvelname][1,self.total_time_index,:,self.lvl]
+            #u=np.ma.masked_array(u,mask=np.isnan(u))
+            #v=np.ma.masked_array(v,mask=np.isnan(v))
 
         elif self.shape==(self.nnodes,):
             self.nodevalues=self.ncs[self.vardict[self.varname]][self.varname][:].values
@@ -222,13 +222,15 @@ class Window(tk.Frame):
             u=self.ncs[self.hvelname][self.hvelname][0,self.total_time_index,:,self.lvl]
             v=self.ncs[self.hvelname][self.hvelname][1,self.total_time_index,:,self.lvl]
         elif self.shape==(2,self.nt,self.nnodes): # 2 vector
-            u=self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:]
-            v=self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:]
+            u=self.ncs[self.hvelname][self.hvelname][0,self.total_time_index,:,self.lvl]
+            v=self.ncs[self.hvelname][self.hvelname][1,self.total_time_index,:,self.lvl]
+            #u=self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:]
+            #v=self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:]
             title='abs' + self.varname
             self.nodevalues=np.sqrt(u*u+v*v)
-            self.nodevalues=np.ma.masked_array(self.nodevalues,mask=np.isnan(self.nodevalues))
-            u=np.ma.masked_array(u,mask=np.isnan(u))
-            v=np.ma.masked_array(v,mask=np.isnan(v))
+            #self.nodevalues=np.ma.masked_array(self.nodevalues,mask=np.isnan(self.nodevalues))
+            #u=np.ma.masked_array(u,mask=np.isnan(u))
+            #v=np.ma.masked_array(v,mask=np.isnan(v))
 			
         elif self.shape==(2,self.nt,self.nnodes,self.nz):
             if self.CheckFixZ.get()==0:
@@ -238,9 +240,9 @@ class Window(tk.Frame):
                 u=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,iabove]
                 v=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,iabove]
             self.nodevalues=np.sqrt(u*u+v*v)
-            self.nodevalues=np.ma.masked_array(self.nodevalues,mask=np.isnan(self.nodevalues))
-            u=np.ma.masked_array(u,mask=np.isnan(u))
-            v=np.ma.masked_array(v,mask=np.isnan(v))
+            #self.nodevalues=np.ma.masked_array(self.nodevalues,mask=np.isnan(self.nodevalues))
+            #u=np.ma.masked_array(u,mask=np.isnan(u))
+            #v=np.ma.masked_array(v,mask=np.isnan(v))
             title='abs ' + self.varname    
             
         if self.CheckEval.get()!=0: # evaluate on displayed variable
@@ -283,9 +285,11 @@ class Window(tk.Frame):
                 vmax=1.5#np.percentile(np.sqrt(u[qloc]**2+v[qloc]**2),0.95)
             else:
                 vmax=np.double(self.maxfield.get())
-
-            #u=u.values
-            #v=v.values
+            if self.shape[0]!=2:
+                u=u.values
+                v=v.values
+            u=np.ma.masked_array(u,mask=np.isnan(u))
+            v=np.ma.masked_array(v,mask=np.isnan(v))			
             if self.normVar.get()==1:
                 vabs=np.sqrt(u[qloc]*u[qloc]+v[qloc]*v[qloc])			
                 #self.quiver=plt.quiver(np.concatenate((self.x[qloc],(xref,))),np.concatenate((self.y[qloc],(yref,))),np.concatenate((u[qloc]/vabs,(1,))),np.concatenate((v[qloc]/vabs,(0,))),scale=2,scale_units='inches') 
@@ -463,7 +467,7 @@ class Window(tk.Frame):
                 self.vardict[vari_vec]=vari_vec
                 self.ncs[vari_vec] ={vari_vec: xr.concat([self.ncs[self.vardict[varX]][varX], self.ncs[self.vardict[varY]][varY]], dim='ivs')}
     
-            self.varlist=list(np.sort(self.varlist))	
+            #self.varlist=list(np.sort(self.varlist))	
     
             p=param(self.runDir+'/param.nml')
             self.reftime=dt.datetime(np.int(p.get_parameter('start_year')),
@@ -472,6 +476,7 @@ class Window(tk.Frame):
             np.int(p.get_parameter('start_hour')),0,0)
             
             #self.reftime=dt.datetime.strptime(self.nc['time'].units[14:33],'%Y-%m-%d %H:%M:%S')
+        self.varlist=list(np.sort(self.varlist))		
         self.nt,self.nnodes,self.nz,=self.ncs[self.vardict[self.zcorname]][self.zcorname].shape
         self.nodeinds=range(self.nnodes)
 
