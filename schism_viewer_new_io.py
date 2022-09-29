@@ -312,9 +312,14 @@ class Window(tk.Frame):
         print("done plotting ")
 
     def update_plots(self):
-        for figi in plt.get_fignums():
-            plt.figure(figi).canvas.draw()
-            plt.figure(figi).canvas.flush_events() # flush gui events
+        # only draw artist	
+        #plt.figure(1).gca().draw_artist(self.ph)
+		# unnecessary now? faster woitout
+        #plt.figure(figi).canvas.draw()
+        #plt.figure(figi).canvas.flush_events() # flush gui events
+        for figi in plt.get_fignums()[1:]:
+            #plt.figure(figi).canvas.draw()
+            #plt.figure(figi).canvas.flush_events() # flush gui events
             try:
                 plt.clim(self.clim) # not sure    
             except:
@@ -802,6 +807,7 @@ class Window(tk.Frame):
              plt.set_cmap(plt.cm.jet)			 
         self.plotx,self.ploty=self.x,self.y		
         self.ph,self.ch=self.schism_plotAtelems(self.nodevalues)
+        self.title=self.varname		
         plt.title(self.varname)
         #plt.tight_layout()
         # colormap
@@ -814,7 +820,10 @@ class Window(tk.Frame):
         self.plot.tight_layout()
         self.minfield.insert(8,str(self.nodevalues.min()))
         self.maxfield.insert(8,str(self.nodevalues.max()))
-        self.update_plots()        # on unix cluster initial fiugre remains black -> therefore reload
+		# only one figure yet
+        plt.figure(1).canvas.draw()
+        plt.figure(1).canvas.flush_events() # flush gui events
+        #self.update_plots()        # on unix cluster initial fiugre remains black -> therefore reload
         print("done initializing")                      
 
         row+=1    
