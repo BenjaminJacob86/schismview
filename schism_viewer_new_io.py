@@ -9,7 +9,7 @@ __license__ = "GNU GPL v2.0"
 __email__ = "benjamin.jacob@hereon.de"
 
 
-# make work for old and new io
+# speed up vecotr plotting
 # evtl comparisn
 # multiple windows
 # allow comparisons of two runs
@@ -234,8 +234,13 @@ class Window(tk.Frame):
 			
         elif self.shape==(2,self.nt,self.nnodes,self.nz):
             if self.CheckFixZ.get()==0:
-                u=self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,self.lvl].values
-                v=self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,self.lvl].values
+                #speed up for old io:
+                if self.oldio:
+                    hvel=self.ncs['schout']['hvel'][self.total_time_index,:,self.lvl,:].values
+                    u,v=hvel[:,0],hvel[:,1]
+                else: #new io
+                    u=self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,self.lvl].values
+                    v=self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,self.lvl].values
             else:
                 u=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,iabove]
                 v=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,iabove]
