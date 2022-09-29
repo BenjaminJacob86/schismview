@@ -206,8 +206,8 @@ class Window(tk.Frame):
                 self.nodevalues=np.ma.masked_array(self.nodevalues,mask=np.isnan(self.nodevalues))
             title=self.varname
 			#use arrows of valocuty for other variables
-            u=self.ncs[self.hvelname][self.hvelname][0,self.total_time_index,:,self.lvl]
-            v=self.ncs[self.hvelname][self.hvelname][1,self.total_time_index,:,self.lvl]
+            #u=self.ncs[self.hvelname][self.hvelname][0,self.total_time_index,:,self.lvl]
+            #v=self.ncs[self.hvelname][self.hvelname][1,self.total_time_index,:,self.lvl]
             #u=np.ma.masked_array(u,mask=np.isnan(u))
             #v=np.ma.masked_array(v,mask=np.isnan(v))
 
@@ -219,11 +219,11 @@ class Window(tk.Frame):
         elif self.shape==(self.nt,self.nnodes):
             self.nodevalues=self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:].values
             title=self.varname
-            u=self.ncs[self.hvelname][self.hvelname][0,self.total_time_index,:,self.lvl]
-            v=self.ncs[self.hvelname][self.hvelname][1,self.total_time_index,:,self.lvl]
+            #u=self.ncs[self.hvelname][self.hvelname][0,self.total_time_index,:,self.lvl]
+            #v=self.ncs[self.hvelname][self.hvelname][1,self.total_time_index,:,self.lvl]
         elif self.shape==(2,self.nt,self.nnodes): # 2 vector
-            u=self.ncs[self.hvelname][self.hvelname][0,self.total_time_index,:,self.lvl]
-            v=self.ncs[self.hvelname][self.hvelname][1,self.total_time_index,:,self.lvl]
+            #u=self.ncs[self.hvelname][self.hvelname][0,self.total_time_index,:,self.lvl]
+            #v=self.ncs[self.hvelname][self.hvelname][1,self.total_time_index,:,self.lvl]
             #u=self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:]
             #v=self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:]
             title='abs' + self.varname
@@ -291,8 +291,13 @@ class Window(tk.Frame):
             else:
                 vmax=np.double(self.maxfield.get())
             if self.shape[0]!=2:
-                u=u.values
-                v=v.values
+                # load velocity for quiver plots on top of no velocity variables
+                if self.oldio:
+                    hvel=self.ncs['schout']['hvel'][self.total_time_index,:,self.lvl,:].values
+                    u,v=hvel[:,0],hvel[:,1]
+                else: #new io
+                    u=self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,self.lvl].values
+                    v=self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,self.lvl].values					
             u=np.ma.masked_array(u,mask=np.isnan(u))
             v=np.ma.masked_array(v,mask=np.isnan(v))			
             if self.normVar.get()==1:
