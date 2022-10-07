@@ -799,6 +799,7 @@ class Window(tk.Frame):
         # initial plot
         self.total_time_index=0
         self.varname='depth'
+        self.depths=self.ncs[self.vardict['depth']]['depth'][0,:].values
         self.nodevalues=self.ncs[self.vardict[self.varname]][self.varname][0,:].values
         self.shape=self.nodevalues.shape
         self.plot=plt.figure(self.fig0)
@@ -1282,7 +1283,11 @@ class Window(tk.Frame):
         #self.update_plots()
 		
     def plot_transect(self,dataTrans,is2d=False):		
+        # dry check nn interp
+        d,qloc=self.xy_nn_tree.query(self.coords)
+        isdry=np.isin(qloc,self.faces[self.dryelems==1,:3])
         if is2d:
+            dataTrans=np.ma.masked_array(dataTrans,mask=dataTrans.mask | isdry)
             plt.plot(self.xs[:,-1],dataTrans) 
             plt.ylabel(self.varname)
             plt.grid()            
@@ -1291,6 +1296,8 @@ class Window(tk.Frame):
             #ch.set_label(self.varname)		
             ch=plt.gca()
         else:		
+			#self.zi[:,-1]==self.zi[:,-2]
+            dataTrans=np.ma.masked_array(dataTrans,mask=dataTrans.mask | np.tile(isdry,(self.zi.shape[1],1)).T)
             self.zi.mask[np.isnan(self.zi)]=True
             cmap=self.cmap_callback() #        self.set_colormap_workaround(self)			
 #           if self.use_cmocean:
@@ -1307,7 +1314,7 @@ class Window(tk.Frame):
 
             plt.pcolor(self.xs,self.zi,dataTrans,cmap=cmap) #shading=['flat','faceted'][self.meshVar.get()]
             plt.ylabel('depth / m')
-
+            plt.plot(self.xs[:,0],self.zi[:,0],'k',linewidth=2)
             ch=plt.colorbar()
             ch.set_label(self.varname)
             if self.meshVar.get():
@@ -1357,6 +1364,7 @@ class Window(tk.Frame):
         zcor=self.ncs[self.vardict[self.zcorname]][self.zcorname][self.total_time_index,:].values
         mask=self.mask3d  | np.isnan(zcor)
         zcor=np.ma.masked_array(zcor,mask=mask)
+		#self.depths
         if is2d:	
             mask=mask[:,-1]		
         if self.ivs==1:
