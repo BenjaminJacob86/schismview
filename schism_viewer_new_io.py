@@ -416,6 +416,7 @@ class Window(tk.Frame):
             self.zcorname='zcor'			
             self.dryvarname='wetdry_elem'
             self.hvelname='hvel'
+            self.vertvelname='vertical_velocity'			
 			# work around to map old velocity as new velocity formatted
 			# for compability
             #from IPython import embed; embed() 
@@ -433,7 +434,8 @@ class Window(tk.Frame):
             self.filetag='out2d'
             self.bindexname='bottom_index_node'
             self.zcorname='zCoordinates'
-            self.dryvarname='dryFlagElement'			
+            self.dryvarname='dryFlagElement'		
+            self.vertvelname='verticalVelocity'			
             for iorder in range(8): # check for schout_nc files until 99999
                 self.files+=glob.glob(self.combinedDir+'out2d_'+'?'*iorder+'.nc')
             nrs=[int(file[file.rfind('_')+1:file.index('.nc')]) for file in self.files]
@@ -1452,7 +1454,7 @@ class Window(tk.Frame):
 			
         else: # vector
             #self.dataTrans=np.zeros((self.ivs+1,len(self.parents),self.nz)) #self.ncs[self.vardict[self.varname]][self.varname][:,i0:i1,self.nn,self.lvl]
-            vert=self.ncs['verticalVelocity']['verticalVelocity'][self.total_time_index,:]
+            vert=self.ncs[self.vertvelname][self.vertvelname][self.total_time_index,:]
             vert=np.ma.masked_array(vert,mask=self.mask3d)
             #print(vert.reshape((1,self.nnodes,self.nz)).shape)
             #print(data.shape)
