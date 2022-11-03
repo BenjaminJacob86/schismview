@@ -851,7 +851,7 @@ class Window(tk.Frame):
         #if self.varname=='depth': # all vector here
             #self.ivs=self.ncs[self.vardict[self.varname]][self.varname].ivs
         #    self.ivs=1			
-        if ('vel' in self.varname) or ('wind' in self.varname): # all vector here			
+        if ('vel' in self.varname.lower()) or ('wind' in self.varname.lower()): # all vector here			
             self.ivs=2		
         else:
             self.ivs=1
