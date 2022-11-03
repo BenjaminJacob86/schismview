@@ -848,10 +848,10 @@ class Window(tk.Frame):
     def variable_callback(self,*args):    # select variable
         print("selected variable " + self.variable.get())
         self.varname=self.variable.get()
-        if self.varname=='depth': # all vector here
+        #if self.varname=='depth': # all vector here
             #self.ivs=self.ncs[self.vardict[self.varname]][self.varname].ivs
-            self.ivs=1			
-        elif (self.varname =='hvel') or (self.varname =='wind'): # all vector here			
+        #    self.ivs=1			
+        if ('vel' in self.varname) or ('wind' in self.varname): # all vector here			
             self.ivs=2		
         else:
             self.ivs=1
@@ -1365,7 +1365,7 @@ class Window(tk.Frame):
             data=np.ma.masked_array(data,mask=mask)#self.mask3d
         elif self.ivs==2: #ivs2=  hvel
             if is2d:	
-                mask_hvel=mask_hvel[:,:,-1]   
+                mask_hvel=self.mask_hvel[:,:,-1]   
             else:	
                 mask_hvel=self.mask_hvel				
             data=self.ncs[self.vardict[self.varname]][self.varname][:,self.total_time_index,:].values
@@ -1690,7 +1690,6 @@ class Window(tk.Frame):
             plt.legend(['schism ' + self.varname,obsfile[obsfile.rindex('/'):]])
             self.update_plots()				
 			
-
     def client_exit(self):
             plt.close('all')
             self.master.destroy()
@@ -1705,4 +1704,3 @@ if __name__ == "__main__":
 	app= Window(root)
 	root.title('schout_view')
 	root.mainloop()
-	
