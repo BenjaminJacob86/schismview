@@ -130,196 +130,435 @@ class Window(tk.Frame):
         self.use_cmocean=use_cmocean
         self.init_window(ncdirsel=ncdirsel)
 		
-                    
-    def find_parent_tri(self,tris,xun,yun,xq,yq,dThresh=1000):
-        """ parents,ndeweights=find_parent_tri(tris,xun,yun,xq,yq,dThresh=1000)
-            find parent for coordinates xq,yq within triangulation tris,xun,yun.
-            return: parent triangle ids and barycentric weights of triangle coordinates
-        """    
-        #% Distance threshold for Point distance
-        dThresh=dThresh**2
-        
-        trisX,trisY=xun[tris],yun[tris]
-        trinr=np.arange(tris.shape[0])
-        
-        #% orthogonal of side vecotrs
-        SideX=np.diff(trisY[:,[0, 1, 2, 0]],axis=1)
-        SideY=-np.diff(trisX[:,[0, 1, 2, 0]],axis=1)
-        
-        p=np.stack((xq,yq),axis=1)
-        parent=-1*np.ones(len(p),int)
-        for ip in range(len(p)):
-                dx1=(p[ip,0]-trisX[:,0])
-                dy1=(p[ip,1]-trisY[:,0])
-                subind=(dx1*dx1+dy1*dy1) < dThresh # preselection
-                subtris=trinr[subind]
-                
-                #% dot products
-                parenti=(subtris[ (dx1[subind]*SideX[subind,0] + dy1[subind]*SideY[subind,0] <= 0) \
-                               & ((p[ip,0]-trisX[subind,1])*SideX[subind,1] + (p[ip,1]-trisY[subind,1])*SideY[subind,1] <= 0) \
-                                 & ( (p[ip,0]-trisX[subind,2])*SideX[subind,2] + (p[ip,1]-trisY[subind,2])*SideY[subind,2] <= 0) ][:])
-                if len(parenti):
-                    parent[ip]=parenti
-        
-        # tri nodes
-        xabc=xun[tris[parent]]
-        yabc=yun[tris[parent]]
-        
-        # barycentric weights
-        divisor=(yabc[:,1]-yabc[:,2])*(xabc[:,0]-xabc[:,2])+(xabc[:,2]-xabc[:,1])*(yabc[:,0]-yabc[:,2])
-        w1=((yabc[:,1]-yabc[:,2])*(xq-xabc[:,2])+(xabc[:,2]-xabc[:,1])*(yq-yabc[:,2]))/divisor
-        w2=((yabc[:,2]-yabc[:,0])*(xq-xabc[:,2])+(xabc[:,0]-xabc[:,2])*(yq-yabc[:,2]))/divisor
-        w3=1-w1-w2
-        bttm=self.ncs[self.filetag][self.bindexname][0,:].values
-        self.ibttms=np.asarray([(bttm[self.faces[parent[i],:]]).max()-1 for i in range(len(parent)) ],int)
-        return parent,np.stack((w1,w2,w3)).transpose() 
-
-    def schism_plotAtelems(self,nodevalues):
-        #from IPython import embed; embed()
-        #if self.uselonlat.get()==1:
-        #    x,y=self.lon,self.lat
-        #else:
-        #    x,y=self.x,self.y
-        ph=plt.tripcolor(self.plotx,self.ploty,self.faces[:,:3],facecolors=self.nodevalues[self.faces[:,:3]].mean(axis=1),shading='flat')#,cmap=self.cmap0)# self.cmap0plt.cm.jet# shading needs gouraud to allow correct update
-        ch=plt.colorbar()
-        plt.tight_layout()
-        return ph,ch
 		
-    def schism_updateAtelems(self):
-        plt.figure(self.fig0)
-        if self.quiver!=0:
-                self.quiver.remove()
-                self.arrowlabel.remove()   
-                self.quiver=0	
-        if self.CheckFixZ.get()!=0:                
-            ibelow,iabove,weights=self.get_layer_weights(np.double(self.fixdepth.get()))
-            lvl=str(self.fixdepth.get()+' m')
-        else:
-            lvl=self.lvl
-            
-        if self.shape==(self.nt,self.nnodes,self.nz):
-            if self.CheckFixZ.get()==0:
-                self.nodevalues=self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,self.lvl].values
-            else: # z interpolation
-                self.nodevalues=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,:].values[self.nodeinds,iabove]
-				# optimize indexing
-                self.nodevalues=np.ma.masked_array(self.nodevalues,mask=np.isnan(self.nodevalues))
-            title=self.varname
-			#use arrows of valocuty for other variables
-            #u=self.ncs[self.hvelname][self.hvelname][0,self.total_time_index,:,self.lvl]
-            #v=self.ncs[self.hvelname][self.hvelname][1,self.total_time_index,:,self.lvl]
-            #u=np.ma.masked_array(u,mask=np.isnan(u))
-            #v=np.ma.masked_array(v,mask=np.isnan(v))
+		
+		
+		
+	class setup(self):
+		plt.ion() # notwendig ?    
+	
+		def __init__(self,master=None,ncdirsel=None,use_cmocean=use_cmocean):		
 
-        elif self.shape==(self.nnodes,):
-            self.nodevalues=self.ncs[self.vardict[self.varname]][self.varname][:].values
-            title=self.varname
-            self.quiver=0
-
-        elif self.shape==(self.nt,self.nnodes):
-            self.nodevalues=self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:].values
-            title=self.varname
-            #u=self.ncs[self.hvelname][self.hvelname][0,self.total_time_index,:,self.lvl]
-            #v=self.ncs[self.hvelname][self.hvelname][1,self.total_time_index,:,self.lvl]
-        elif self.shape==(2,self.nt,self.nnodes): # 2 vector
-            #u=self.ncs[self.hvelname][self.hvelname][0,self.total_time_index,:,self.lvl]
-            #v=self.ncs[self.hvelname][self.hvelname][1,self.total_time_index,:,self.lvl]
-            #u=self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:]
-            #v=self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:]
-            title='abs' + self.varname
-            self.nodevalues=np.sqrt(u*u+v*v)
-            #self.nodevalues=np.ma.masked_array(self.nodevalues,mask=np.isnan(self.nodevalues))
-            #u=np.ma.masked_array(u,mask=np.isnan(u))
-            #v=np.ma.masked_array(v,mask=np.isnan(v))
+			# load files    
+			if ncdirsel==None:
+				print("navigate into schsim run directory (containing param.nml)")
+				self.runDir=filedialog.askdirectory(title='enter run directory direcory')+'/'
+				nnodes=np.int(np.loadtxt(self.runDir+'hgrid.ll',skiprows=1,max_rows=1)[1])
+				m=np.loadtxt(self.runDir+'hgrid.ll',skiprows=2,max_rows=nnodes)
+				self.lon,self.lat=m[:,1],m[:,2]
+				self.ll_nn_tree = cKDTree([[self.lon[i],self.lat[i]] for i in range(len(self.lon))])
+				print("navigate into schout_*.nc directory")
+				self.combinedDir=filedialog.askdirectory(title='enter schout_*.nc direcory')+'/'
+			else:
+				self.combinedDir=ncdirsel
+				
+			# new i/o files	
+			if len(glob.glob(self.combinedDir+'out2d_*.nc'))>0:
+				print('found per variable netcdf output format')
+				self.oldio=False
+			elif len(self.combinedDir+'schout_*.nc')>0:
+				print('found schout.nc output format')
+				self.oldio=True
 			
-        elif self.shape==(2,self.nt,self.nnodes,self.nz):
-            if self.CheckFixZ.get()==0:
-                #speed up for old io:
-                if self.oldio:
-                    hvel=self.ncs['schout']['hvel'][self.total_time_index,:,self.lvl,:].values
-                    u,v=hvel[:,0],hvel[:,1]
-                else: #new io
-                    u=self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,self.lvl].values
-                    v=self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,self.lvl].values
-            else:
-                u=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,iabove]
-                v=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,iabove]
-            self.nodevalues=np.sqrt(u*u+v*v)
-            #self.nodevalues=np.ma.masked_array(self.nodevalues,mask=np.isnan(self.nodevalues))
-            #u=np.ma.masked_array(u,mask=np.isnan(u))
-            #v=np.ma.masked_array(v,mask=np.isnan(v))
-            title='abs ' + self.varname    
-            
-        if self.CheckEval.get()!=0: # evaluate on displayed variable
-                expr= self.evalex.get()
-                expr=expr[expr.index('=')+1:].replace('x','self.nodevalues').replace('A','self.A').replace('dt','self.dt')
-                self.nodevalues=eval(expr)    
-                
-        if self.varname != 'depth':
-            #title=self.varname+' @ ' + str(self.reftime + dt.timedelta(seconds=np.int(self.ncs[self.filetag]['time'][self.total_time_index]))) + ' level= ' + str(lvl)
-            title=self.titlegen(self.lvl)
-        else:
-            title=self.varname
-        # setting colorbar
-        elemvalues=np.ma.masked_array(self.nodevalues[self.faces[:,:3]].mean(axis=1),mask=(self.dryelems==1)*self.maskdry.get())
-        self.ph.set_array(elemvalues)
-        if not self.CheckVar.get():
-            cmin,cmax=np.nanmin(elemvalues),np.nanmax(elemvalues)			            
-            self.clim=(cmin,cmax)			
-            self.minfield.delete(0,tk.END)
-            self.maxfield.delete(0,tk.END)
-            self.minfield.insert(8,str(cmin))
-            self.maxfield.insert(8,str(cmax))
-        else:
-            self.clim=(np.double(self.minfield.get()),np.double(self.maxfield.get()))
-        self.ph.set_clim(self.clim) 
-        
-        # add quiver
-        if self.quivVar.get():
-            xlim=plt.xlim()
-            ylim=plt.ylim()
-            x=np.arange(xlim[0],xlim[1],(xlim[1]-xlim[0])/self.narrows)
-            y=np.arange(ylim[0],ylim[1],(ylim[1]-ylim[0])/self.narrows)
-            X, Y = np.meshgrid(x,y)
-            if self.uselonlat.get()==0:
-                d,qloc=self.xy_nn_tree.query((np.vstack([X.ravel(), Y.ravel()])).transpose()) #quiver locations
-            else:
-                d,qloc=self.ll_nn_tree.query((np.vstack([X.ravel(), Y.ravel()])).transpose()) #quiver locations				
-            xref,yref=np.asarray(plt.axis())[[1,2]] +  np.diff(plt.axis())[[0,2]]*[- 0.2, 0.1]
-            if (self.shape==(self.nt,self.nnodes)) or (self.shape==(self.nt,self.nnodes,self.nz)): 
-                vmax=1.5#np.percentile(np.sqrt(u[qloc]**2+v[qloc]**2),0.95)
-            else:
-                vmax=np.double(self.maxfield.get())
-            if self.shape[0]!=2:
-                # load velocity for quiver plots on top of no velocity variables
-                if self.oldio:
-                    hvel=self.ncs['schout']['hvel'][self.total_time_index,:,self.lvl,:].values
-                    u,v=hvel[:,0],hvel[:,1]
-                else: #new io
-                    u=self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,self.lvl].values
-                    v=self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,self.lvl].values					
-            u=np.ma.masked_array(u,mask=np.isnan(u))
-            v=np.ma.masked_array(v,mask=np.isnan(v))			
-            if self.normVar.get()==1:
-                vabs=np.sqrt(u[qloc]*u[qloc]+v[qloc]*v[qloc])			
-                #self.quiver=plt.quiver(np.concatenate((self.x[qloc],(xref,))),np.concatenate((self.y[qloc],(yref,))),np.concatenate((u[qloc]/vabs,(1,))),np.concatenate((v[qloc]/vabs,(0,))),scale=2,scale_units='inches') 
-                self.quiver=plt.quiver(np.concatenate((self.plotx[qloc],(xref,))),np.concatenate((self.ploty[qloc],(yref,))),np.concatenate((u[qloc]/vabs,(1,))),np.concatenate((v[qloc]/vabs,(0,))),scale=2,scale_units='inches') 
-                self.arrowlabel=plt.text(xref,yref,'normalized \n velocity ')
-            else:				
-                #self.quiver=plt.quiver(np.concatenate((self.x[qloc],(xref,))),np.concatenate((self.y[qloc],(yref,))),np.concatenate((u[qloc],(vmax,))),np.concatenate((v[qloc],(0,))),scale=2*vmax,scale_units='inches') 
-                self.quiver=plt.quiver(np.concatenate((self.plotx[qloc],(xref,))),np.concatenate((self.ploty[qloc],(yref,))),np.concatenate((u[qloc],(vmax,))),np.concatenate((v[qloc],(0,))),scale=2*vmax,scale_units='inches') 
-                self.arrowlabel=plt.text(xref,yref,'\n'*3+str(np.round(vmax,4))+' m/s')
-            
-        # remove annotations if figure 2 closed
-        if self.fig1 not in plt.get_fignums() and (len(self.anno)>0) :
-            for item in self.anno:
-                item.remove()
-            self.anno=[]
-        
-        #update plot    
-        plt.title(title)
-        self.update_plots()
-        print("done plotting ")
+
+			self.files=[] 		
+			if self.oldio:
+				for iorder in range(6): # check for schout_nc files until 99999
+					self.files+=glob.glob(self.combinedDir+'schout_'+'?'*iorder+'.nc')
+				nrs=[int(file[file.rfind('_')+1:file.index('.nc')]) for file in self.files]
+				self.files=list(np.asarray(self.files)[np.argsort(nrs)])
+				nrs=list(np.asarray(nrs)[np.argsort(nrs)])
+				self.nstacks=len(self.files)
+				print('found ' +str(self.nstacks) +' stack(s)')
+				self.stack0=np.int(nrs[0])
+				
+				# initialize extracion along files # check ofr future if better performance wih xarray
+				self.ncs={'schout':[]}
+				self.ncs['schout']=xr.concat([ xr.open_dataset(self.combinedDir+'schout_'+str(nr)+'.nc').chunk() for nr in nrs],dim='time')
+				self.ncv=self.ncs['schout'].variables
+				try:
+					self.ncs['schout']=xr.concat([ xr.open_dataset(self.combinedDir+'schout_'+str(nr)+'.nc').chunk() for nr in nrs],dim='time')
+				except:
+					print("error loading via MFDataset - time series and hovmoeller diagrams wont work")
+					pass		
+					
+					
+				self.vardict={} # variable to nc dict relations
+				
+			   # load variable list from netcdf #########################################            
+				exclude=['time','SCHISM_hgrid', 'SCHISM_hgrid_face_nodes', 'SCHISM_hgrid_edge_nodes', 'SCHISM_hgrid_node_x',
+			 'SCHISM_hgrid_node_y', 'bottom_index_node', 'SCHISM_hgrid_face_x', 'SCHISM_hgrid_face_y', 
+			 'ele_bottom_index', 'SCHISM_hgrid_edge_x', 'SCHISM_hgrid_edge_y', 'edge_bottom_index',
+			 'sigma', 'dry_value_flag', 'coordinate_system_flag', 'minimum_depth', 'sigma_h_c', 'sigma_theta_b', 
+			 'sigma_theta_f', 'sigma_maxdepth', 'Cs', 'wetdry_node','wetdry_elem', 'wetdry_side'] # exclude for plot selection
+				vector_vars=[] # stack components for convenience	  
+				self.vardict={} # variable to nc dict relations
+
+				for vari in self.ncv:
+					if vari not in exclude:
+						if  self.ncv[vari].shape[-1]==2:
+							vector_vars.append(vari)		
+							self.vardict[vari]=vari			
+							self.ncs[vari] ={vari: xr.concat([self.ncs['schout'][vari].sel(two=0),self.ncs['schout'][vari].sel(two=1)], dim='ivs')}
+						else:
+							self.vardict[vari]='schout'		
+				self.varlist=list(self.vardict.keys())
+				self.filetag='schout'			
+				self.bindexname='node_bottom_index'
+				self.zcorname='zcor'			
+				self.dryvarname='wetdry_elem'
+				self.hvelname='hvel'
+				self.vertvelname='vertical_velocity'			
+				# work around to map old velocity as new velocity formatted
+
+				strdte=[np.float(digit) for digit in self.ncs[self.filetag]['time'].attrs['base_date'].split()]
+				self.reftime=dt.datetime.strptime('{:04.0f}-{:02.0f}-{:02.0f} {:02.0f}:{:02.0f}:{:02.0f}'.format(strdte[0],strdte[1],strdte[2],strdte[3],strdte[3],0),'%Y-%m-%d %H:%M:%S')
+				
+			else: # new io
+				self.hvelname='horizontalVel'
+				self.filetag='out2d'
+				self.bindexname='bottom_index_node'
+				self.zcorname='zCoordinates'
+				self.dryvarname='dryFlagElement'		
+				self.vertvelname='verticalVelocity'			
+				for iorder in range(8): # check for schout_nc files until 99999
+					self.files+=glob.glob(self.combinedDir+'out2d_'+'?'*iorder+'.nc')
+				nrs=[int(file[file.rfind('_')+1:file.index('.nc')]) for file in self.files]
+				self.files=list(np.asarray(self.files)[np.argsort(nrs)])
+				nrs=list(np.asarray(nrs)[np.argsort(nrs)])
+				self.nstacks=len(self.files)
+				self.stack0=np.int(nrs[0])
+				print('found ' +str(self.nstacks) +' stack(s)')
+		
+				
+				# file access        
+				# vars # problem sediment
+				varfiles=[file[file.rindex('/')+1:file.rindex('_')] for file in glob.glob(self.combinedDir+'*_'+str(nrs[0])+'.nc') ]
+				self.ncs=dict.fromkeys(varfiles)
+				try:
+					for var in varfiles:
+						self.ncs[var]=xr.concat([ xr.open_dataset(self.combinedDir+var+'_'+str(nr)+'.nc').chunk() for nr in nrs],dim='time')
+				except:	
+					nrs=list(np.asarray(nrs)[np.argsort(nrs)])[:-1]
+					self.nstacks=len(self.files)-1
+					for var in varfiles:
+						self.ncs[var]=xr.concat([ xr.open_dataset(self.combinedDir+var+'_'+str(nr)+'.nc').chunk() for nr in nrs],dim='time')		
+			
+
+			   # load variable list from netcdf #########################################            
+				exclude=['time','SCHISM_hgrid', 'SCHISM_hgrid_face_nodes', 'SCHISM_hgrid_edge_nodes', 'SCHISM_hgrid_node_x',
+			 'SCHISM_hgrid_node_y', 'bottom_index_node', 'SCHISM_hgrid_face_x', 'SCHISM_hgrid_face_y', 
+			 'ele_bottom_index', 'SCHISM_hgrid_edge_x', 'SCHISM_hgrid_edge_y', 'edge_bottom_index',
+			 'sigma', 'dry_value_flag', 'coordinate_system_flag', 'minimum_depth', 'sigma_h_c', 'sigma_theta_b', 
+			 'sigma_theta_f', 'sigma_maxdepth', 'Cs', 'dryFlagElement'] # exclude for plot selection
+				vector_vars=[] # stack components for convenience	  
+				self.vardict={} # variable to nc dict relations
+				for nci_key in self.ncs.keys():
+					for vari in self.ncs[nci_key].keys():
+						if vari not in exclude:
+							self.vardict[vari]=nci_key	
+						if vari[-1] =='Y': 
+							vector_vars.append(vari[:-1])
+			
+				self.varlist=list(self.vardict.keys())
+		
+				for vari_vec in vector_vars:			
+					varX=vari_vec+'X'	  
+					varY=vari_vec+'Y'	  
+					self.varlist+=[vari_vec]
+					self.vardict[vari_vec]=vari_vec
+					self.ncs[vari_vec] ={vari_vec: xr.concat([self.ncs[self.vardict[varX]][varX], self.ncs[self.vardict[varY]][varY]], dim='ivs')}
+		
+				#self.varlist=list(np.sort(self.varlist))	
+		
+				p=param(self.runDir+'/param.nml')
+				self.reftime=dt.datetime(np.int(p.get_parameter('start_year')),
+				np.int(p.get_parameter('start_month')),
+				np.int(p.get_parameter('start_day')),
+				np.int(p.get_parameter('start_hour')),0,0)
+				
+				#self.reftime=dt.datetime.strptime(self.nc['time'].units[14:33],'%Y-%m-%d %H:%M:%S')
+			self.varlist=list(np.sort(self.varlist))		
+			self.nt,self.nnodes,self.nz,=self.ncs[self.vardict[self.zcorname]][self.zcorname].shape
+			self.nodeinds=range(self.nnodes)
+
+				
+			if self.nt == 1:
+				self.faces=np.asarray(self.ncs[self.filetag]['SCHISM_hgrid_face_nodes'][:].values-1,int)
+				self.x=self.ncs[self.filetag]['SCHISM_hgrid_node_x'][:].values
+				self.y=self.ncs[self.filetag]['SCHISM_hgrid_node_y'][:].values
+			else: # file dimension become cocantenated by files
+				self.faces=np.asarray(self.ncs[self.filetag]['SCHISM_hgrid_face_nodes'][0,:].values-1,int)
+				self.x=self.ncs[self.filetag]['SCHISM_hgrid_node_x'][0,:].values
+				self.y=self.ncs[self.filetag]['SCHISM_hgrid_node_y'][0,:].values
+
+			try:
+				self.stack_size=self.ncs[self.filetag].chunksizes['time'][0]
+			except:
+				self.stack_size=self.ncs[self.filetag].chunks['time'][0]
+				
+			
+			try:
+				lmin = self.ncs[self.filetag][self.bindexname][0,:].values
+			except:
+				zvar = self.ncs[self.vardict[self.zcorname]][self.zcorname][0]
+				lmin = np.zeros(self.x.shape,dtype='int')
+				for i in range(len(self.x)):
+					try:
+						lmin[i] = max(np.where(zvar.mask[i])[0])
+					except:
+						lmin[i] = 0
+						lmin = lmin+1
+			self.ibbtm=self.ncs[self.filetag][self.bindexname][0,:].values-1    
+			
+			
+			self.mask3d=np.zeros((self.nnodes,self.nz),bool) # mask for 3d field at one time step
+			for inode in range(self.nnodes):
+				self.mask3d[inode,:self.ibbtm[inode]]=True # controlled that corresponding z is depths		
+			self.mask_hvel=np.tile(self.mask3d,(2,1,1))
+			self.mask_wind=self.mask_hvel[:,:,0]
+			# next neighbour node look up tree
+			self.xy_nn_tree = cKDTree([[self.x[i],self.y[i]] for i in range(len(self.x))]) # next neighbour search tree	                                     
+			self.ll_nn_tree = cKDTree([[self.lon[i],self.lat[i]] for i in range(len(self.x))]) # next neighbour search		
+			self.minavgdist=np.min(np.sqrt(np.abs(np.diff(self.x[self.faces[:,[0,1,2,0]]],axis=1))**2+np.abs(np.diff(self.y[self.faces[:,[0,1,2,0]]],axis=1))**2).mean(axis=1))
+			#from IPython import embed; embed() #self.maxavgdist=np.max(np.sqrt(np.abs(np.diff(self.x[self.faces[:,[0,1,2,0]]],axis=1))**2+np.abs(np.diff(self.y[self.faces[:,[0,1,2,0]]],axis=1))**2).mean(axis=1))
+
+			# mesh for mesh visualisazion        
+			xy=np.c_[self.x,self.y]
+			self.mesh_tris=xy[self.faces[np.where(self.faces[:,-1]<0)][:,:3]]#[:,:3]
+			self.mesh_quads=xy[self.faces[np.where(self.faces[:,-1]>-1)]][:,:]
+			
+			self.tripc = PolyCollection(self.mesh_tris,facecolors='none',edgecolors='k',linewidth=0.2) #, **kwargs)
+			self.hasquads = np.min(self.mesh_quads.shape)>0
+			
+			if self.hasquads: #build tri only grid for faster plotting
+				self.quadpc = PolyCollection(self.mesh_quads,facecolors='none',edgecolors='r',linewidth=0.2) #, **kwargs)    
+				print("building pure triangle grid for easier plotting")
+				faces2=[]
+				self.origins=[] # mapping from nodes to triangles for triplot
+
+				for nr,elem in enumerate(self.faces):
+					if elem[-1]<0:
+						faces2.append(elem[:3])
+						self.origins.append(nr)
+					else: # split quad into tris
+						faces2.append(elem[[0,1,2]])
+						faces2.append(elem[[0,2,3]])
+						self.origins.append(nr)
+						self.origins.append(nr)
+				self.faces=np.array(faces2)                    
+				self.origins=np.array(self.origins)
+				print("done")
+			else:
+				 self.faces=self.faces[:,:3]
+				 self.origins=np.arange(self.faces.shape[0])
+			##########################################  
+			self.dryelems=self.ncs[self.filetag][self.dryvarname][0,:][self.origins]
+
+			# next neighbour element look up tree
+			self.cx,self.cy=np.mean(self.x[self.faces],axis=1),np.mean(self.y[self.faces],axis=1)
+			elcoords=[[self.cx[i],self.cy[i]] for i in range(len(self.cx))] # pooint pairs of nodes
+			self.elem_nn_tree = cKDTree(elcoords) # next neighbour search tree	      
+
+		
+                    
+		def find_parent_tri(self,tris,xun,yun,xq,yq,dThresh=1000):
+			""" parents,ndeweights=find_parent_tri(tris,xun,yun,xq,yq,dThresh=1000)
+				find parent for coordinates xq,yq within triangulation tris,xun,yun.
+				return: parent triangle ids and barycentric weights of triangle coordinates
+			"""    
+			#% Distance threshold for Point distance
+			dThresh=dThresh**2
+			
+			trisX,trisY=xun[tris],yun[tris]
+			trinr=np.arange(tris.shape[0])
+			
+			#% orthogonal of side vecotrs
+			SideX=np.diff(trisY[:,[0, 1, 2, 0]],axis=1)
+			SideY=-np.diff(trisX[:,[0, 1, 2, 0]],axis=1)
+			
+			p=np.stack((xq,yq),axis=1)
+			parent=-1*np.ones(len(p),int)
+			for ip in range(len(p)):
+					dx1=(p[ip,0]-trisX[:,0])
+					dy1=(p[ip,1]-trisY[:,0])
+					subind=(dx1*dx1+dy1*dy1) < dThresh # preselection
+					subtris=trinr[subind]
+					
+					#% dot products
+					parenti=(subtris[ (dx1[subind]*SideX[subind,0] + dy1[subind]*SideY[subind,0] <= 0) \
+								   & ((p[ip,0]-trisX[subind,1])*SideX[subind,1] + (p[ip,1]-trisY[subind,1])*SideY[subind,1] <= 0) \
+									 & ( (p[ip,0]-trisX[subind,2])*SideX[subind,2] + (p[ip,1]-trisY[subind,2])*SideY[subind,2] <= 0) ][:])
+					if len(parenti):
+						parent[ip]=parenti
+			
+			# tri nodes
+			xabc=xun[tris[parent]]
+			yabc=yun[tris[parent]]
+			
+			# barycentric weights
+			divisor=(yabc[:,1]-yabc[:,2])*(xabc[:,0]-xabc[:,2])+(xabc[:,2]-xabc[:,1])*(yabc[:,0]-yabc[:,2])
+			w1=((yabc[:,1]-yabc[:,2])*(xq-xabc[:,2])+(xabc[:,2]-xabc[:,1])*(yq-yabc[:,2]))/divisor
+			w2=((yabc[:,2]-yabc[:,0])*(xq-xabc[:,2])+(xabc[:,0]-xabc[:,2])*(yq-yabc[:,2]))/divisor
+			w3=1-w1-w2
+			bttm=self.ncs[self.filetag][self.bindexname][0,:].values
+			self.ibttms=np.asarray([(bttm[self.faces[parent[i],:]]).max()-1 for i in range(len(parent)) ],int)
+			return parent,np.stack((w1,w2,w3)).transpose() 
+
+		def schism_plotAtelems(self,nodevalues,ax=plt.gca()):
+			#from IPython import embed; embed()
+			#if self.uselonlat.get()==1:
+			#    x,y=self.lon,self.lat
+			#else:
+			#    x,y=self.x,self.y
+			ph=ax.tripcolor(self.plotx,self.ploty,self.faces[:,:3],facecolors=self.nodevalues[self.faces[:,:3]].mean(axis=1),shading='flat')#,cmap=self.cmap0)# self.cmap0plt.cm.jet# shading needs gouraud to allow correct update
+			ch=plt.colorbar()
+			plt.tight_layout()
+			
+			self.ph=ph
+			self.ch=ch
+			return ph,ch
+		
+		def schism_updateAtelems(self):
+			plt.figure(self.fig0)
+			if self.quiver!=0:
+					self.quiver.remove()
+					self.arrowlabel.remove()   
+					self.quiver=0	
+			if self.CheckFixZ.get()!=0:                
+				ibelow,iabove,weights=self.get_layer_weights(np.double(self.fixdepth.get()))
+				lvl=str(self.fixdepth.get()+' m')
+			else:
+				lvl=self.lvl
+				
+			if self.shape==(self.nt,self.nnodes,self.nz):
+				if self.CheckFixZ.get()==0:
+					self.nodevalues=self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,self.lvl].values
+				else: # z interpolation
+					self.nodevalues=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,:].values[self.nodeinds,iabove]
+					# optimize indexing
+					self.nodevalues=np.ma.masked_array(self.nodevalues,mask=np.isnan(self.nodevalues))
+				title=self.varname
+				#use arrows of valocuty for other variables
+				#u=self.ncs[self.hvelname][self.hvelname][0,self.total_time_index,:,self.lvl]
+				#v=self.ncs[self.hvelname][self.hvelname][1,self.total_time_index,:,self.lvl]
+				#u=np.ma.masked_array(u,mask=np.isnan(u))
+				#v=np.ma.masked_array(v,mask=np.isnan(v))
+
+			elif self.shape==(self.nnodes,):
+				self.nodevalues=self.ncs[self.vardict[self.varname]][self.varname][:].values
+				title=self.varname
+				self.quiver=0
+
+			elif self.shape==(self.nt,self.nnodes):
+				self.nodevalues=self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:].values
+				title=self.varname
+				#u=self.ncs[self.hvelname][self.hvelname][0,self.total_time_index,:,self.lvl]
+				#v=self.ncs[self.hvelname][self.hvelname][1,self.total_time_index,:,self.lvl]
+			elif self.shape==(2,self.nt,self.nnodes): # 2 vector
+				#u=self.ncs[self.hvelname][self.hvelname][0,self.total_time_index,:,self.lvl]
+				#v=self.ncs[self.hvelname][self.hvelname][1,self.total_time_index,:,self.lvl]
+				#u=self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:]
+				#v=self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:]
+				title='abs' + self.varname
+				self.nodevalues=np.sqrt(u*u+v*v)
+				#self.nodevalues=np.ma.masked_array(self.nodevalues,mask=np.isnan(self.nodevalues))
+				#u=np.ma.masked_array(u,mask=np.isnan(u))
+				#v=np.ma.masked_array(v,mask=np.isnan(v))
+				
+			elif self.shape==(2,self.nt,self.nnodes,self.nz):
+				if self.CheckFixZ.get()==0:
+					#speed up for old io:
+					if self.oldio:
+						hvel=self.ncs['schout']['hvel'][self.total_time_index,:,self.lvl,:].values
+						u,v=hvel[:,0],hvel[:,1]
+					else: #new io
+						u=self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,self.lvl].values
+						v=self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,self.lvl].values
+				else:
+					self.u=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,iabove]
+					self.v=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,iabove]
+				self.nodevalues=np.sqrt(u*u+v*v)
+				#self.nodevalues=np.ma.masked_array(self.nodevalues,mask=np.isnan(self.nodevalues))
+				#u=np.ma.masked_array(u,mask=np.isnan(u))
+				#v=np.ma.masked_array(v,mask=np.isnan(v))
+				title='abs ' + self.varname    
+				
+			if self.CheckEval.get()!=0: # evaluate on displayed variable
+					expr= self.evalex.get()
+					expr=expr[expr.index('=')+1:].replace('x','self.nodevalues').replace('A','self.A').replace('dt','self.dt')
+					self.nodevalues=eval(expr)    
+					
+			if self.varname != 'depth':
+				#title=self.varname+' @ ' + str(self.reftime + dt.timedelta(seconds=np.int(self.ncs[self.filetag]['time'][self.total_time_index]))) + ' level= ' + str(lvl)
+				title=self.titlegen(self.lvl)
+			else:
+				title=self.varname
+			# setting colorbar
+			elemvalues=np.ma.masked_array(self.nodevalues[self.faces[:,:3]].mean(axis=1),mask=(self.dryelems==1)*self.maskdry.get())
+			self.ph.set_array(elemvalues)
+			if not self.CheckVar.get():
+				cmin,cmax=np.nanmin(elemvalues),np.nanmax(elemvalues)			            
+				self.clim=(cmin,cmax)			
+				self.minfield.delete(0,tk.END)
+				self.maxfield.delete(0,tk.END)
+				self.minfield.insert(8,str(cmin))
+				self.maxfield.insert(8,str(cmax))
+			else:
+				self.clim=(np.double(self.minfield.get()),np.double(self.maxfield.get()))
+			self.ph.set_clim(self.clim) 
+			
+			# add quiver
+			if self.quivVar.get():
+				xlim=plt.xlim()
+				ylim=plt.ylim()
+				x=np.arange(xlim[0],xlim[1],(xlim[1]-xlim[0])/self.narrows)
+				y=np.arange(ylim[0],ylim[1],(ylim[1]-ylim[0])/self.narrows)
+				X, Y = np.meshgrid(x,y)
+				if self.uselonlat.get()==0:
+					d,qloc=self.xy_nn_tree.query((np.vstack([X.ravel(), Y.ravel()])).transpose()) #quiver locations
+				else:
+					d,qloc=self.ll_nn_tree.query((np.vstack([X.ravel(), Y.ravel()])).transpose()) #quiver locations				
+				xref,yref=np.asarray(plt.axis())[[1,2]] +  np.diff(plt.axis())[[0,2]]*[- 0.2, 0.1]
+				if (self.shape==(self.nt,self.nnodes)) or (self.shape==(self.nt,self.nnodes,self.nz)): 
+					vmax=1.5#np.percentile(np.sqrt(u[qloc]**2+v[qloc]**2),0.95)
+				else:
+					vmax=np.double(self.maxfield.get())
+				if self.shape[0]!=2:
+					# load velocity for quiver plots on top of no velocity variables
+					if self.oldio:
+						hvel=self.ncs['schout']['hvel'][self.total_time_index,:,self.lvl,:].values
+						self.u,self.v=hvel[:,0],hvel[:,1]
+					else: #new io
+						self.u=self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,self.lvl].values
+						self.v=self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,self.lvl].values					
+				self.u=np.ma.masked_array(self.u,mask=np.isnan(self.u))
+				self.v=np.ma.masked_array(self.v,mask=np.isnan(self.v))			
+				if self.normVar.get()==1:
+					self.vabs=np.sqrt(self.u[qloc]*self.u[qloc]+self.v[qloc]*self.v[qloc])			
+					
+					self.quiver=plt.quiver(np.concatenate((self.plotx[qloc],(xref,))),np.concatenate((self.ploty[qloc],(yref,))),np.concatenate((self.u[qloc]/self.vabs,(1,))),np.concatenate((self.v[qloc]/self.vabs,(0,))),scale=2,scale_units='inches') 
+					self.arrowlabel=plt.text(xref,yref,'normalized \n velocity ')
+				else:				
+					#self.quiver=plt.quiver(np.concatenate((self.x[qloc],(xref,))),np.concatenate((self.y[qloc],(yref,))),np.concatenate((u[qloc],(vmax,))),np.concatenate((v[qloc],(0,))),scale=2*vmax,scale_units='inches') 
+					self.quiver=plt.quiver(np.concatenate((self.plotx[qloc],(xref,))),np.concatenate((self.ploty[qloc],(yref,))),np.concatenate((self.u[qloc],(self.vmax,))),np.concatenate((self.v[qloc],(0,))),scale=2*vmax,scale_units='inches') 
+					self.arrowlabel=plt.text(xref,yref,'\n'*3+str(np.round(vmax,4))+' m/s')
+				
+			# remove annotations if figure 2 closed
+			if self.fig1 not in plt.get_fignums() and (len(self.anno)>0) :
+				for item in self.anno:
+					item.remove()
+				self.anno=[]
+			
+			#update plot    
+			plt.title(title)
+			self.update_plots()
+			print("done plotting ")
+			
+			
+			
+			
+			
 
     def update_plots(self):
         # only draw artist	
@@ -341,233 +580,21 @@ class Window(tk.Frame):
         else: # new io
                 return self.varname+' @ ' + str(self.reftime + dt.timedelta(seconds=np.int(self.ncs[self.filetag]['time'][self.total_time_index]))) + ' level= ' + str(lvl)		
 		
-				
+
+		
     def init_window(self,ncdirsel=None):
         self.pack(fill=tk.BOTH,expand=1)
         self.fig0=len(plt.get_fignums())+1
         self.fig1=self.fig0+1
 		
-        # load files    
-        if ncdirsel==None:
-            print("navigate into schsim run directory (containing param.nml)")
-            self.runDir=filedialog.askdirectory(title='enter run directory direcory')+'/'
-            nnodes=np.int(np.loadtxt(self.runDir+'hgrid.ll',skiprows=1,max_rows=1)[1])
-            m=np.loadtxt(self.runDir+'hgrid.ll',skiprows=2,max_rows=nnodes)
-            self.lon,self.lat=m[:,1],m[:,2]
-            self.ll_nn_tree = cKDTree([[self.lon[i],self.lat[i]] for i in range(len(self.lon))])
-            print("navigate into schout_*.nc directory")
-            self.combinedDir=filedialog.askdirectory(title='enter schout_*.nc direcory')+'/'
-        else:
-            self.combinedDir=ncdirsel
-			
-		# new i/o files	
-        if len(glob.glob(self.combinedDir+'out2d_*.nc'))>0:
-            print('found per variable netcdf output format')
-            self.oldio=False
-        elif len(self.combinedDir+'schout_*.nc')>0:
-            print('found schout.nc output format')
-            self.oldio=True
+
 		
-
-        self.files=[] 		
-        if self.oldio:
-            for iorder in range(6): # check for schout_nc files until 99999
-                self.files+=glob.glob(self.combinedDir+'schout_'+'?'*iorder+'.nc')
-            nrs=[int(file[file.rfind('_')+1:file.index('.nc')]) for file in self.files]
-            self.files=list(np.asarray(self.files)[np.argsort(nrs)])
-            nrs=list(np.asarray(nrs)[np.argsort(nrs)])
-            self.nstacks=len(self.files)
-            print('found ' +str(self.nstacks) +' stack(s)')
-            self.stack0=np.int(nrs[0])
-            
-            # initialize extracion along files # check ofr future if better performance wih xarray
-            self.ncs={'schout':[]}
-            self.ncs['schout']=xr.concat([ xr.open_dataset(self.combinedDir+'schout_'+str(nr)+'.nc').chunk() for nr in nrs],dim='time')
-            self.ncv=self.ncs['schout'].variables
-            try:
-                self.ncs['schout']=xr.concat([ xr.open_dataset(self.combinedDir+'schout_'+str(nr)+'.nc').chunk() for nr in nrs],dim='time')
-            except:
-                print("error loading via MFDataset - time series and hovmoeller diagrams wont work")
-                pass		
-				
-				
-            self.vardict={} # variable to nc dict relations
-			
-           # load variable list from netcdf #########################################            
-            exclude=['time','SCHISM_hgrid', 'SCHISM_hgrid_face_nodes', 'SCHISM_hgrid_edge_nodes', 'SCHISM_hgrid_node_x',
-         'SCHISM_hgrid_node_y', 'bottom_index_node', 'SCHISM_hgrid_face_x', 'SCHISM_hgrid_face_y', 
-         'ele_bottom_index', 'SCHISM_hgrid_edge_x', 'SCHISM_hgrid_edge_y', 'edge_bottom_index',
-         'sigma', 'dry_value_flag', 'coordinate_system_flag', 'minimum_depth', 'sigma_h_c', 'sigma_theta_b', 
-         'sigma_theta_f', 'sigma_maxdepth', 'Cs', 'wetdry_node','wetdry_elem', 'wetdry_side'] # exclude for plot selection
-            vector_vars=[] # stack components for convenience	  
-            self.vardict={} # variable to nc dict relations
-
-            for vari in self.ncv:
-                if vari not in exclude:
-                    if  self.ncv[vari].shape[-1]==2:
-                        vector_vars.append(vari)		
-                        self.vardict[vari]=vari			
-                        self.ncs[vari] ={vari: xr.concat([self.ncs['schout'][vari].sel(two=0),self.ncs['schout'][vari].sel(two=1)], dim='ivs')}
-                    else:
-                        self.vardict[vari]='schout'		
-            self.varlist=list(self.vardict.keys())
-            self.filetag='schout'			
-            self.bindexname='node_bottom_index'
-            self.zcorname='zcor'			
-            self.dryvarname='wetdry_elem'
-            self.hvelname='hvel'
-            self.vertvelname='vertical_velocity'			
-			# work around to map old velocity as new velocity formatted
-
-            strdte=[np.float(digit) for digit in self.ncs[self.filetag]['time'].attrs['base_date'].split()]
-            self.reftime=dt.datetime.strptime('{:04.0f}-{:02.0f}-{:02.0f} {:02.0f}:{:02.0f}:{:02.0f}'.format(strdte[0],strdte[1],strdte[2],strdte[3],strdte[3],0),'%Y-%m-%d %H:%M:%S')
-			
-        else: # new io
-            self.hvelname='horizontalVel'
-            self.filetag='out2d'
-            self.bindexname='bottom_index_node'
-            self.zcorname='zCoordinates'
-            self.dryvarname='dryFlagElement'		
-            self.vertvelname='verticalVelocity'			
-            for iorder in range(8): # check for schout_nc files until 99999
-                self.files+=glob.glob(self.combinedDir+'out2d_'+'?'*iorder+'.nc')
-            nrs=[int(file[file.rfind('_')+1:file.index('.nc')]) for file in self.files]
-            self.files=list(np.asarray(self.files)[np.argsort(nrs)])
-            nrs=list(np.asarray(nrs)[np.argsort(nrs)])
-            self.nstacks=len(self.files)
-            self.stack0=np.int(nrs[0])
-            print('found ' +str(self.nstacks) +' stack(s)')
-    
-    		
-            # file access        
-    		# vars # problem sediment
-            varfiles=[file[file.rindex('/')+1:file.rindex('_')] for file in glob.glob(self.combinedDir+'*_'+str(nrs[0])+'.nc') ]
-            self.ncs=dict.fromkeys(varfiles)
-            try:
-                for var in varfiles:
-                    self.ncs[var]=xr.concat([ xr.open_dataset(self.combinedDir+var+'_'+str(nr)+'.nc').chunk() for nr in nrs],dim='time')
-            except:	
-                nrs=list(np.asarray(nrs)[np.argsort(nrs)])[:-1]
-                self.nstacks=len(self.files)-1
-                for var in varfiles:
-                    self.ncs[var]=xr.concat([ xr.open_dataset(self.combinedDir+var+'_'+str(nr)+'.nc').chunk() for nr in nrs],dim='time')		
-		
-
-           # load variable list from netcdf #########################################            
-            exclude=['time','SCHISM_hgrid', 'SCHISM_hgrid_face_nodes', 'SCHISM_hgrid_edge_nodes', 'SCHISM_hgrid_node_x',
-         'SCHISM_hgrid_node_y', 'bottom_index_node', 'SCHISM_hgrid_face_x', 'SCHISM_hgrid_face_y', 
-         'ele_bottom_index', 'SCHISM_hgrid_edge_x', 'SCHISM_hgrid_edge_y', 'edge_bottom_index',
-         'sigma', 'dry_value_flag', 'coordinate_system_flag', 'minimum_depth', 'sigma_h_c', 'sigma_theta_b', 
-         'sigma_theta_f', 'sigma_maxdepth', 'Cs', 'dryFlagElement'] # exclude for plot selection
-            vector_vars=[] # stack components for convenience	  
-            self.vardict={} # variable to nc dict relations
-            for nci_key in self.ncs.keys():
-                for vari in self.ncs[nci_key].keys():
-                    if vari not in exclude:
-                        self.vardict[vari]=nci_key	
-                    if vari[-1] =='Y': 
-                        vector_vars.append(vari[:-1])
-    	
-            self.varlist=list(self.vardict.keys())
-    
-            for vari_vec in vector_vars:			
-                varX=vari_vec+'X'	  
-                varY=vari_vec+'Y'	  
-                self.varlist+=[vari_vec]
-                self.vardict[vari_vec]=vari_vec
-                self.ncs[vari_vec] ={vari_vec: xr.concat([self.ncs[self.vardict[varX]][varX], self.ncs[self.vardict[varY]][varY]], dim='ivs')}
-    
-            #self.varlist=list(np.sort(self.varlist))	
-    
-            p=param(self.runDir+'/param.nml')
-            self.reftime=dt.datetime(np.int(p.get_parameter('start_year')),
-            np.int(p.get_parameter('start_month')),
-            np.int(p.get_parameter('start_day')),
-            np.int(p.get_parameter('start_hour')),0,0)
-            
-            #self.reftime=dt.datetime.strptime(self.nc['time'].units[14:33],'%Y-%m-%d %H:%M:%S')
-        self.varlist=list(np.sort(self.varlist))		
-        self.nt,self.nnodes,self.nz,=self.ncs[self.vardict[self.zcorname]][self.zcorname].shape
-        self.nodeinds=range(self.nnodes)
-
-			
-        if self.nt == 1:
-            self.faces=np.asarray(self.ncs[self.filetag]['SCHISM_hgrid_face_nodes'][:].values-1,int)
-            self.x=self.ncs[self.filetag]['SCHISM_hgrid_node_x'][:].values
-            self.y=self.ncs[self.filetag]['SCHISM_hgrid_node_y'][:].values
-        else: # file dimension become cocantenated by files
-            self.faces=np.asarray(self.ncs[self.filetag]['SCHISM_hgrid_face_nodes'][0,:].values-1,int)
-            self.x=self.ncs[self.filetag]['SCHISM_hgrid_node_x'][0,:].values
-            self.y=self.ncs[self.filetag]['SCHISM_hgrid_node_y'][0,:].values
-
-        try:
-            self.stack_size=self.ncs[self.filetag].chunksizes['time'][0]
-        except:
-            self.stack_size=self.ncs[self.filetag].chunks['time'][0]
-			
-        
-        try:
-            lmin = self.ncs[self.filetag][self.bindexname][0,:].values
-        except:
-            zvar = self.ncs[self.vardict[self.zcorname]][self.zcorname][0]
-            lmin = np.zeros(self.x.shape,dtype='int')
-            for i in range(len(self.x)):
-                try:
-                    lmin[i] = max(np.where(zvar.mask[i])[0])
-                except:
-                    lmin[i] = 0
-                    lmin = lmin+1
-        self.ibbtm=self.ncs[self.filetag][self.bindexname][0,:].values-1    
+        #############################  Plot functions ##################################
 		
 		
-        self.mask3d=np.zeros((self.nnodes,self.nz),bool) # mask for 3d field at one time step
-        for inode in range(self.nnodes):
-            self.mask3d[inode,:self.ibbtm[inode]]=True # controlled that corresponding z is depths		
-        self.mask_hvel=np.tile(self.mask3d,(2,1,1))
-        self.mask_wind=self.mask_hvel[:,:,0]
-        # next neighbour node look up tree
-        self.xy_nn_tree = cKDTree([[self.x[i],self.y[i]] for i in range(len(self.x))]) # next neighbour search tree	                                     
-        self.ll_nn_tree = cKDTree([[self.lon[i],self.lat[i]] for i in range(len(self.x))]) # next neighbour search		
-        self.minavgdist=np.min(np.sqrt(np.abs(np.diff(self.x[self.faces[:,[0,1,2,0]]],axis=1))**2+np.abs(np.diff(self.y[self.faces[:,[0,1,2,0]]],axis=1))**2).mean(axis=1))
-        #from IPython import embed; embed() #self.maxavgdist=np.max(np.sqrt(np.abs(np.diff(self.x[self.faces[:,[0,1,2,0]]],axis=1))**2+np.abs(np.diff(self.y[self.faces[:,[0,1,2,0]]],axis=1))**2).mean(axis=1))
-
-        # mesh for mesh visualisazion        
-        xy=np.c_[self.x,self.y]
-        self.mesh_tris=xy[self.faces[np.where(self.faces[:,-1]<0)][:,:3]]#[:,:3]
-        self.mesh_quads=xy[self.faces[np.where(self.faces[:,-1]>-1)]][:,:]
 		
-        self.tripc = PolyCollection(self.mesh_tris,facecolors='none',edgecolors='k',linewidth=0.2) #, **kwargs)
-        self.hasquads = np.min(self.mesh_quads.shape)>0
-        
-        if self.hasquads: #build tri only grid for faster plotting
-            self.quadpc = PolyCollection(self.mesh_quads,facecolors='none',edgecolors='r',linewidth=0.2) #, **kwargs)    
-            print("building pure triangle grid for easier plotting")
-            faces2=[]
-            self.origins=[] # mapping from nodes to triangles for triplot
-
-            for nr,elem in enumerate(self.faces):
-                if elem[-1]<0:
-                    faces2.append(elem[:3])
-                    self.origins.append(nr)
-                else: # split quad into tris
-                    faces2.append(elem[[0,1,2]])
-                    faces2.append(elem[[0,2,3]])
-                    self.origins.append(nr)
-                    self.origins.append(nr)
-            self.faces=np.array(faces2)                    
-            self.origins=np.array(self.origins)
-            print("done")
-        else:
-             self.faces=self.faces[:,:3]
-             self.origins=np.arange(self.faces.shape[0])
-        ##########################################  
-        self.dryelems=self.ncs[self.filetag][self.dryvarname][0,:][self.origins]
-
-        # next neighbour element look up tree
-        self.cx,self.cy=np.mean(self.x[self.faces],axis=1),np.mean(self.y[self.faces],axis=1)
-        elcoords=[[self.cx[i],self.cy[i]] for i in range(len(self.cx))] # pooint pairs of nodes
-        self.elem_nn_tree = cKDTree(elcoords) # next neighbour search tree	      
-
+		
+		
 
         ########################################################################## 
         #### GUI ELEMENTS ##############
