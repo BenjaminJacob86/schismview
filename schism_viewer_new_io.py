@@ -333,6 +333,7 @@ class Window(tk.Frame):
             try:
                 plt.clim(self.clim) # not sure    
             except:
+                print('error updating clim')			                
                 pass
 				
     def titlegen(self,lvl):
@@ -588,6 +589,7 @@ class Window(tk.Frame):
         extractmenu = tk.Menu(menubar, tearoff=0)
         extractmenu.add_command(label="Timeseries", command=self.timeseries)
         extractmenu.add_command(label="Hovmoeller", command=self.hovmoeller)
+        extractmenu.add_command(label="Horiz Hovmoeller", command=self.hovmoeller_horz)
         extractmenu.add_command(label="Profiles", command=self.profiles)
         extractmenu.add_command(label="Transect", command=self.transect_callback)
         extractmenu.add_command(label="Transect_from_bp_file", command=self.bptransect_callback)
@@ -790,6 +792,7 @@ class Window(tk.Frame):
         self.exto.insert(8,str(self.nt))
 		
         # initial plot
+        self.ivs=1
         self.total_time_index=0
         self.varname='depth'
         self.depths=self.ncs[self.vardict['depth']]['depth'][0,:].values
@@ -1000,10 +1003,10 @@ class Window(tk.Frame):
         plt.clf()
         self.ph,self.ch=self.schism_plotAtelems(self.nodevalues)
         self.schism_updateAtelems()
-	
+
+		
     def ask_coordinates(self,n=-1,coords=None,interp=False):
             plt.figure(self.fig0)
-			
             if coords==None:	 		
                 plt.title("click coordinates in Fig.1. Press ESC when finished")
                 print("click coordinates in Fig.1. Press ESC when finished")
@@ -1012,7 +1015,6 @@ class Window(tk.Frame):
                 plt.figure(self.fig0)
                 self.coords=plt.ginput(n,show_clicks='True')
                 plt.title(self.titlegen(self.lvl))
-                #plt.title(self.varname+' @ ' + str(self.reftime + dt.timedelta(seconds=np.int(self.ncs[self.filetag]['time'][self.total_time_index]))) + ' level= ' + str(self.lvl))
             else:
             	self.coords=coords
             # plot coordinates on main figure / remove potential old coordinates
@@ -1022,35 +1024,46 @@ class Window(tk.Frame):
             			item.remove()
             	except:
             		pass
-            # interpolate coordinates for transect
-            if self.extract==self.transect_callback: # interp coordinates
-                xy=np.asarray(self.coords)
-                dxdy=np.diff(xy,axis=0)
-                dr=np.sqrt((dxdy**2).sum(axis=1))
-                r=dxdy[:,1]/dxdy[:,0]
-                if interp:
-                    
-                    #self.minavgdist=np.float(input('Enter distance [m ord degree if ics=2] for between point interpolation:'))
-                    self.minavgdist=tk.simpledialog.askfloat(title='interp dx', prompt='Enter distance [hgrid.gr3 units i.e. m] for between point interpolation: [0:= keep points]',initialvalue=250,minvalue=0)
-                    coords1=[] 
-                    if self.minavgdist !=0:
-                    	for i in range(len(self.coords)-1):
-                    	    dx=np.linspace(0,dxdy[i,0],int(np.floor(dr[i]/self.minavgdist)))
-                    	    coords1+=([(xi[0][0],xi[0][1]) for xi in zip((xy[i,:]+np.stack((dx, dx*r[i]),axis=1)))])
-                    else:		
-                        coords1=self.coords					
-                else:
-                    coords1=self.coords
-					
-       
-                ivalid=~np.isnan(np.asarray(coords1).sum(axis=1))	
-                print('{:d} nn points are NaN and removed from list and plotting'.format(len(ivalid)-ivalid.sum()))				                
-                xy=np.asarray(coords1)[ivalid,:]  # remove nan coords
-                coords1=list(zip(xy[:,0],xy[:,1]))
-                x,y=xy[:,0],xy[:,1]
-                self.npt=ivalid.sum()#len(x)
-                self.xs=np.tile(np.arange(self.npt),(self.nz,1)).T
-                self.coords=coords1					
+				
+            if interp:  # interpolate coordinates for transect
+			           
+            	xy=np.asarray(self.coords)
+            	dxdy=np.diff(xy,axis=0)
+            	dr=np.sqrt((dxdy**2).sum(axis=1))
+            	r=dxdy[:,1]/dxdy[:,0]
+            	
+            	
+            	#self.minavgdist=np.float(input('Enter distance [m ord degree if ics=2] for between point interpolation:'))
+            	self.minavgdist=tk.simpledialog.askfloat(title='interp dx', prompt='Enter distance [hgrid.gr3 units i.e. m] for between point interpolation: [0:= keep points]',initialvalue=250,minvalue=0)
+            	coords1=[] 
+            	if self.minavgdist !=0:
+            		for i in range(len(self.coords)-1):
+            			dx=np.linspace(0,dxdy[i,0],int(np.floor(dr[i]/self.minavgdist)))
+            			coords1+=([(xi[0][0],xi[0][1]) for xi in zip((xy[i,:]+np.stack((dx, dx*r[i]),axis=1)))])
+            		self.coords=coords1											
+            	else:		
+            		coords1=self.coords					
+            else:
+            	coords1=self.coords
+				
+            if self.uselonlat.get()==0:			
+            	d,self.nn=self.xy_nn_tree.query(self.coords)  # nearest node
+            else:								
+            	d,self.nn=self.ll_nn_tree.query(self.coords)  # nearest node				
+				
+
+            ivalid=~np.isnan(np.asarray(coords1).sum(axis=1))	
+            self.npt=len(self.nn)							
+            print('{:d} nn points are NaN and removed from list and plotting'.format(len(ivalid)-ivalid.sum()))				                
+            xy=np.asarray(coords1)[ivalid,:]  # remove nan coords
+            coords1=list(zip(xy[:,0],xy[:,1]))
+            x,y=xy[:,0],xy[:,1]
+            self.npt=ivalid.sum()#len(x)
+            self.xs=np.tile(np.arange(self.npt),(self.nz,1)).T
+            self.coords=coords1					
+			
+            if (self.extract==self.transect_callback) or (self.extract==self.hovmoeller_horz): # interp coordinates
+			
                 #xy=np.asarray(coords1)
                 #x,y=xy[:,0],xy[:,1]
                 #self.npt=len(x)
@@ -1060,6 +1073,7 @@ class Window(tk.Frame):
                 #self.parents,self.ndeweights=self.find_parent_tri(self.faces,self.x,self.y,xy[:,0],xy[:,1],dThresh=self.maxavgdist*3)
                 #print('done interpolating node weights from parents')				
                 #self.xs=np.tile(np.arange(len(self.parents)),(self.nz,1)).T
+				
                 self.anno=plt.plot(x,y,'k.-')        
                 self.anno.append(plt.text(x[0],y[0],'P '+str(0)))
                 for ix in range(25,len(x),25):
@@ -1265,16 +1279,76 @@ class Window(tk.Frame):
         plt.xlabel('time')
         plt.gcf().autofmt_xdate() # format date		
         plt.tight_layout()
-        #cmap=self.set_colormap_workaround(self)
-        #plt.set_cmap(self.cmap.get())
 
         self.zminfield.delete(0, 'end')
         self.zmaxfield.delete(0, 'end')
         self.zminfield.insert(8,str(plt.gca().get_ylim()[0]))
         self.zmaxfield.insert(8,str(plt.gca().get_ylim()[1]))
         self.cmap_callback()# plot with chosen colormap
-        #self.update_plots()
+
+
+    def hovmoeller_horz(self,coords=None):
+        
+        self.extract=self.hovmoeller_horz
+        if coords==None:
+            self.ask_coordinates(n=-1,interp=True)
+
+        print('extracting hovmoeller for ' + self.varname + ' at coordinates: ' + str(self.coords))
+        i0,i1=int(self.exfrom.get()),int(self.exto.get())
+
+		#self.zcor=np.squeeze(self.ncs[self.vardict[self.zcorname]][self.zcorname][i0:i1,self.nn,:])
+        if self.oldio:
+            self.t=self.ncs['schout']['time'].values
+        else:
+            self.t=np.asarray([self.reftime + dt.timedelta(seconds=ti) for ti in            self.ncs[self.filetag]['time'].values],np.datetime64)[i0:i1]
+			
+        if self.shape[:3]==(self.nt,self.nnodes,self.nz):
+            self.ts=np.squeeze(self.ncs[self.vardict[self.varname]][self.varname][i0:i1,self.nn,self.lvl])
+        elif self.shape[1:]==(self.nt,self.nnodes,self.nz):#hvel
+            self.ts=np.squeeze(self.ncs[self.vardict[self.varname]][self.varname][:,i0:i1,self.nn,self.lvl])
+        elif self.shape==(self.nt,self.nnodes):
+            self.ts=np.squeeze(self.ncs[self.vardict[self.varname]][self.varname][i0:i1,self.nn])
+        elif self.shape==(self.nt,self.nnodes,2):
+            self.ts=np.squeeze(self.ncs[self.vardict[self.varname]][self.varname][i0:i1,self.nn,:])		
+        else:
+            print('variable has non suitable format')
 		
+        self.xs=np.tile(np.arange(self.npt),(len(self.t),1))#.T
+		
+        fig2=plt.figure(self.fig1)
+        fig2.clf()
+        if self.ivs==1:
+            plt.pcolormesh(np.tile(self.t,(len(self.nn),1)).transpose(),self.xs,self.ts)#/86400
+            plt.ylabel('point')
+            plt.xlabel('time')
+            plt.title(self.varname)
+        else:
+            comps=[' - u', '- v ', '- abs' ]
+            for iplt in range(1,3):
+                plt.subplot(3,1,iplt)
+                plt.pcolormesh(np.tile(self.t,(self.nz,1)).transpose(),self.xs,np.squeeze(self.ts[iplt-1,:,:]))#/86400#squeeze(self.ts[:,:,iplt-1]))#/86400
+                plt.ylabel('depth')
+                plt.title(self.varname)
+                plt.colorbar()
+                plt.title(self.varname + comps[iplt-1])
+                plt.tick_params(axis='x',labelbottom='off')
+                plt.set_cmap(self.cmap.get())
+            plt.subplot(3,1,3)
+            plt.pcolor(np.tile(self.t,(self.nz,1)).transpose(),self.zcor,np.sum(np.sqrt(self.ts**2),axis=0))#/86400
+            plt.title(self.varname + comps[2])  
+
+        plt.colorbar()
+        plt.xlabel('time')
+        plt.gcf().autofmt_xdate() # format date		
+        plt.tight_layout()
+
+        self.zminfield.delete(0, 'end')
+        self.zmaxfield.delete(0, 'end')
+        self.zminfield.insert(8,str(plt.gca().get_ylim()[0]))
+        self.zmaxfield.insert(8,str(plt.gca().get_ylim()[1]))
+        self.cmap_callback()# plot with chosen colormap
+
+
     def plot_transect(self,dataTrans,is2d=False):		
         # dry check nn interp
         d,qloc=self.xy_nn_tree.query(self.coords)
@@ -1284,9 +1358,6 @@ class Window(tk.Frame):
             plt.plot(self.xs[:,-1],dataTrans) 
             plt.ylabel(self.varname)
             plt.grid()            
-            #plt.set_cmap(self.cmap.get())
-            #ch=plt.colorbar()
-            #ch.set_label(self.varname)		
             ch=plt.gca()
         else:		
 			#self.zi[:,-1]==self.zi[:,-2]
