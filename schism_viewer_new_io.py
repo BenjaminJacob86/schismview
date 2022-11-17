@@ -175,7 +175,6 @@ class Window(tk.Frame):
         return parent,np.stack((w1,w2,w3)).transpose() 
 
     def schism_plotAtelems(self,nodevalues):
-        #from IPython import embed; embed()
         #if self.uselonlat.get()==1:
         #    x,y=self.lon,self.lat
         #else:
@@ -311,10 +310,19 @@ class Window(tk.Frame):
                 self.arrowlabel=plt.text(xref,yref,'\n'*3+str(np.round(vmax,4))+' m/s')
             
         # remove annotations if figure 2 closed
-        if self.fig1 not in plt.get_fignums() and (len(self.anno)>0) :
-            for item in self.anno:
-                item.remove()
-            self.anno=[]
+		#org
+        #if self.fig1 not in plt.get_fignums() and (len(self.anno)>0) :
+        #    for item in self.anno:
+        #        item.remove()
+        #    self.anno=[]
+			
+		# multifig
+        for fignr in self.plot_windows.keys():
+            anno=self.plot_windows[fignr]['anno']
+            if fignr not in plt.get_fignums() and (len(anno)>0) :
+                for item in anno:
+                    item.remove()
+                self.plot_windows[fignr]['anno']=[]
         
         #update plot    
         plt.title(title)
@@ -346,7 +354,11 @@ class Window(tk.Frame):
     def init_window(self,ncdirsel=None):
         self.pack(fill=tk.BOTH,expand=1)
         self.fig0=len(plt.get_fignums())+1
-        self.fig1=self.fig0+1
+        self.plot_windows={}  
+        #self.fig1=self.fig0+1
+        self.fignums=1
+        self.figs=[]    #self.figs=[]  plt.get_fignums()
+        self.annos=[]
 		
         # load files    
         if ncdirsel==None:
@@ -854,6 +866,9 @@ class Window(tk.Frame):
         #if self.varname=='depth': # all vector here
             #self.ivs=self.ncs[self.vardict[self.varname]][self.varname].ivs
         #    self.ivs=1			
+		
+        if ('vertical' in self.varname.lower()):
+            self.ivs=1		
         if ('vel' in self.varname.lower()) or ('wind' in self.varname.lower()): # all vector here			
             self.ivs=2		
         else:
@@ -862,9 +877,18 @@ class Window(tk.Frame):
         self.schism_updateAtelems()
 
         #update extract plots in figure 2
-        if self.fig1 in plt.get_fignums():
-                self.extract(coords=self.coords)   
+        #if self.fig1 in plt.get_fignums():
+        #        self.extract(coords=self.coords)   
 
+		# multifig
+        for fignr in self.plot_windows.keys():
+            if fignr in plt.get_fignums():
+                #from IPython import embed; embed()
+                self.activefig=self.plot_windows[fignr]['nr']
+                self.xs=self.plot_windows[fignr]['xs'].copy()
+                self.coords=self.plot_windows[fignr]['coords'].copy()
+                self.plot_windows[fignr]['extract'](self.plot_windows[fignr]['coords'])
+				
     def variable_selection(self,event): #combobox callback done differntly
         self.variable.set(self.combo.get())        #selection = self.combo.get()
 				
@@ -896,8 +920,18 @@ class Window(tk.Frame):
 		
         self.dryelems=self.ncs[self.filetag][self.dryvarname][self.total_time_index,:][self.origins]
         self.schism_updateAtelems()
-        if self.fig1 in plt.get_fignums() and (self.extract==self.profiles or self.extract==self.transect_callback):
-                self.extract(self.coords)
+
+
+        for fignr in self.plot_windows.keys():
+            extract=self.plot_windows[fignr]['extract']
+            if fignr in plt.get_fignums() and (extract==self.profiles or extract==self.transect_callback):
+                self.activefig=self.plot_windows[fignr]['nr']
+                self.xs=self.plot_windows[fignr]['xs'].copy()
+                self.coords=self.plot_windows[fignr]['coords'].copy()
+                extract(self.plot_windows[fignr]['coords'])
+            else:        
+                self.plot_windows.pop(fignr)
+				
 
     def playcallback(self,*args):
             count=(self.current_stack-self.stacks[0])*self.stack_size+self.ti_tk.get()
@@ -1018,12 +1052,12 @@ class Window(tk.Frame):
             else:
             	self.coords=coords
             # plot coordinates on main figure / remove potential old coordinates
-            if (len(self.anno)>0) :
-            	try:
-            		for item in self.anno:
-            			item.remove()
-            	except:
-            		pass
+            #if (len(self.anno)>0) :
+            #	try:
+            #		for item in self.anno:
+            #			item.remove()
+            #	except:
+            #		pass
 				
             if interp:  # interpolate coordinates for transect
 			           
@@ -1074,12 +1108,19 @@ class Window(tk.Frame):
                 #print('done interpolating node weights from parents')				
                 #self.xs=np.tile(np.arange(len(self.parents)),(self.nz,1)).T
 				
-                self.anno=plt.plot(x,y,'k.-')        
-                self.anno.append(plt.text(x[0],y[0],'P '+str(0)))
+                #self.anno=plt.plot(x,y,'k.-')        
+                #self.anno.append(plt.text(x[0],y[0],'P '+str(0)))
+                #for ix in range(25,len(x),25):
+                #    self.anno.append(plt.text(x[ix],y[ix],'P '+str(ix)))
+                #self.anno.append(plt.text(x[0],y[0],'P '+str(0)))
+                #self.anno.append(plt.text(x[-1],y[-1],'P '+str(self.npt-1)))
+
+                anno=plt.plot(x,y,'k.-')        
+                anno.append(plt.text(x[0],y[0],'P '+str(0)))
                 for ix in range(25,len(x),25):
-                    self.anno.append(plt.text(x[ix],y[ix],'P '+str(ix)))
-                self.anno.append(plt.text(x[0],y[0],'P '+str(0)))
-                self.anno.append(plt.text(x[-1],y[-1],'P '+str(self.npt-1)))
+                    anno.append(plt.text(x[ix],y[ix],'P '+str(ix)))
+                anno.append(plt.text(x[0],y[0],'P '+str(0)))
+                anno.append(plt.text(x[-1],y[-1],'P '+str(self.npt-1)))
 
             else:    
                 if self.uselonlat.get()==0:			
@@ -1087,15 +1128,28 @@ class Window(tk.Frame):
                 else:								
                     d,self.nn=self.ll_nn_tree.query(self.coords)  # nearest node				
                 self.npt=len(self.nn)
-                self.anno=plt.plot(self.plotx[self.nn],self.ploty[self.nn],'k+')             
+                #self.anno=plt.plot(self.plotx[self.nn],self.ploty[self.nn],'k+')             
+                anno=plt.plot(self.plotx[self.nn],self.ploty[self.nn],'k+')             				
                 for i,coord in enumerate(self.coords):
                     xi,yi=coord
-                    self.anno.append(plt.text(xi,yi,'P '+str(i)))
+                    #self.anno.append(plt.text(xi,yi,'P '+str(i)))
+                    anno.append(plt.text(xi,yi,'P '+str(i)))					
                 if self.npt==1:
                     self.nn=self.nn[0]
             print('done interpolating transect coordinates')
+			
+	
             self.update_plots()
-	      
+
+			# initilaize new plot window	
+            self.fignums+=1
+            plt.get_fignums()[1:]
+            #        self.figs.append(self.fignums)
+            fig2=plt.figure(self.fignums)
+            nr=self.fignums
+            self.plot_windows[self.fignums]={'fh':fig2,'nr':nr,'anno':anno,'type':self.timeseries,'coords':self.coords.copy(),'extract':self.extract,'xs':self.xs.copy()}
+            self.activefig=nr
+			
     def timeseries(self,coords=None):
         """"
         Extract timeseries at nextneighbours to clicked coordinates
@@ -1131,9 +1185,20 @@ class Window(tk.Frame):
                 self.ts=self.ncs[self.vardict[self.varname]][self.varname][:,i0:i1,self.nn,self.lvl].values.reshape(2,i1-i0,1)
             else:
                 self.ts=self.ncs[self.vardict[self.varname]][self.varname][:,i0:i1,self.nn,self.lvl].values
-    
-        fig2=plt.figure(self.fig1)
-        fig2.clf()
+
+        #self.fignums=1
+        #self.plot_windows={}   #excluding main windos
+        #self.figs=[]    #self.figs=[]  plt.get_fignums()
+        #self.annos=[]
+        # org			
+        #fig2=plt.figure(self.fig1)
+		
+        #self.fignums+=1
+        #plt.get_fignums()[1:]
+        #        self.figs.append(self.fignums)
+        #fig2=plt.figure(self.fignums)
+		#self.plot_windows[self.fignums]={'fh':fig2,'anno':[],'type':self.timeseries}
+        #fig2.clf()
         if self.ivs==1:
             if self.CheckEval.get()!=0:
                 expr= self.evalex.get()
@@ -1342,18 +1407,21 @@ class Window(tk.Frame):
         plt.gcf().autofmt_xdate() # format date		
         plt.tight_layout()
 
-        self.zminfield.delete(0, 'end')
-        self.zmaxfield.delete(0, 'end')
-        self.zminfield.insert(8,str(plt.gca().get_ylim()[0]))
-        self.zmaxfield.insert(8,str(plt.gca().get_ylim()[1]))
+        #self.zminfield.delete(0, 'end')
+        #self.zmaxfield.delete(0, 'end')
+        #self.zminfield.insert(8,str(plt.gca().get_ylim()[0]))
+        #self.zmaxfield.insert(8,str(plt.gca().get_ylim()[1]))
         self.cmap_callback()# plot with chosen colormap
 
 
     def plot_transect(self,dataTrans,is2d=False):		
         # dry check nn interp
+        plt.figure(self.activefig)
+        #plt.clf()
         d,qloc=self.xy_nn_tree.query(self.coords)
         isdry=np.isin(qloc,self.faces[self.dryelems==1,:3])
         if is2d:
+            plt.figure(self.activefig)
             dataTrans=np.ma.masked_array(dataTrans,mask=dataTrans.mask | isdry)
             plt.plot(self.xs[:,-1],dataTrans) 
             plt.ylabel(self.varname)
@@ -1364,19 +1432,8 @@ class Window(tk.Frame):
             dataTrans=np.ma.masked_array(dataTrans,mask=dataTrans.mask | np.tile(isdry,(self.zi.shape[1],1)).T)
             self.zi.mask[np.isnan(self.zi)]=True
             cmap=self.cmap_callback() #        self.set_colormap_workaround(self)			
-#           if self.use_cmocean:
-#              #cmap='cmo.{:s}'.format(self.cmap.get())# # works
-#              cmap=eval('cmo.{:s}'.format(self.cmap.get()))
-#              cmap.set_bad('gray')
-#              cmap.name='cmo.{:s}'.format(self.cmap.get())
-#              plt.set_cmap(cmap)
-#              #plt.set_cmap(self.cmap.get())
-#           else: #matplotlib
-#              cmap=plt.cm.get_cmap(self.cmap.get())
-#              cmap.set_bad('gray')
-#              plt.set_cmap(self.cmap.get())
-
-            plt.pcolor(self.xs,self.zi,dataTrans,cmap=cmap) #shading=['flat','faceted'][self.meshVar.get()]
+            plt.figure(self.activefig)
+            plt.pcolor(self.xs,self.zi,dataTrans,cmap=cmap) 
             plt.ylabel('depth / m')
             plt.plot(self.xs[:,0],self.zi[:,0],'k',linewidth=2)
             ch=plt.colorbar()
@@ -1384,7 +1441,6 @@ class Window(tk.Frame):
             if self.meshVar.get():
                 plt.plot(self.xs,self.zi,'k',linewidth=0.2)
         plt.title(self.titlegen(np.nan))            		
-        #plt.title(str(self.reftime + dt.timedelta(seconds=np.int(self.ncs[self.filetag]['time'][self.total_time_index]))))
         return ch
 		
 	#def add_quiv(self,dataTrans):	
@@ -1474,9 +1530,13 @@ class Window(tk.Frame):
         #np.isnan(ylim[0])
         #print('warning nan in zcor') if np.isnan(ylim[0]) else 1		
         ylim=((np.nanmin(self.zi),5)) # nan
-        fig2=plt.figure(self.fig1)
-        fig2.clf()
-
+        #fig2=plt.figure(self.fig1)  # keep last from coords ask
+		
+        #fig2=self.activefig
+        #plt.figure(fig2)
+        #fig2.clf()
+        plt.figure(self.activefig)
+        plt.clf()
         if self.ivs==1: # scalar # interpolation along sigma layers
             
             if m_interp=='dinv':
@@ -1497,9 +1557,9 @@ class Window(tk.Frame):
             else: #nearest neighbour	 interp
                 
                 print('usig nearest neighbour interpolation for transect')
-                d,qloc=self.xy_nn_tree.query(self.coords)
-                isub=np.unique(qloc,return_index=True)[1] # only use unique values
-                qloc=np.asarray([indi for indi in qloc if indi in qloc[isub]])
+                #d,qloc=self.xy_nn_tree.query(self.coords)
+                #isub=np.unique(qloc,return_index=True)[1] # only use unique values
+                #qloc=np.asarray([indi for indi in qloc if indi in qloc[isub]])
                 if is2d:
                     #self.dataTrans=data[qloc[isub]]		
                     self.dataTrans=data[qloc]							
@@ -1522,14 +1582,14 @@ class Window(tk.Frame):
                 ylim=((np.nanmin(self.dataTrans),np.nanmax(self.dataTrans))) # nan
             else:
                 ylim=((np.nanmin(self.zi),5)) # nan
+				
+				
+
             self.plot_transect(self.dataTrans,is2d)
-			
         else: # vector
             #self.dataTrans=np.zeros((self.ivs+1,len(self.parents),self.nz)) #self.ncs[self.vardict[self.varname]][self.varname][:,i0:i1,self.nn,self.lvl]
             vert=self.ncs[self.vertvelname][self.vertvelname][self.total_time_index,:]
             vert=np.ma.masked_array(vert,mask=self.mask3d)
-            #print(vert.reshape((1,self.nnodes,self.nz)).shape)
-            #print(data.shape)
             data=np.concatenate((data,vert.reshape((1,self.nnodes,self.nz))),axis=0) # stack vertil
             #data=np.concatenate((data,vert.reshape((1,self.nnodes,self.nz))),axis=2) # stack vertil velocity
             #for i in range(len(self.parents)):
@@ -1635,10 +1695,12 @@ class Window(tk.Frame):
             self.update_plots()
             
     def updatezlim(self,*args):
-        if self.fig1 in plt.get_fignums() and (self.extract!=self.timeseries):
+        #if self.fig1 in plt.get_fignums() and (self.extract!=self.timeseries):
+        if self.activefig in plt.get_fignums() and (self.extract!=self.timeseries):
             zmin,zmax=self.zminfield.get(),self.zmaxfield.get()
             if (len(zmax)*len(zmin))>0 : 
-                cf=plt.figure(self.fig1)
+                #cf=plt.figure(self.fig1)
+                cf=plt.figure(self.activefig)
                 if self.ivs==1:
                     axes = plt.gca()
                     cf.get_axes()
