@@ -8,7 +8,11 @@ __author__  = "Benjamin Jacob"
 __license__ = "GNU GPL v2.0"
 __email__ = "benjamin.jacob@hereon.de"
 
+
 # speed up vecotr plotting
+# evtl comparisn
+# multiple windows
+# allow comparisons of two runs
 # use subaxes in figure
 
 import sys
@@ -42,7 +46,7 @@ import datetime as dt
 import matplotlib.backends.backend_tkagg as tkagg
 from numpy import * # make available for eval expressions
 import time
-
+#mpl.rcParams['toolbar'] = 'None' # deactivate figure toolbars as in combination with tkinter they become non-responsive on clusters
 
 import warnings
 warnings.filterwarnings("ignore")	
@@ -54,7 +58,9 @@ else:
     import Tkinter as tk
     import tkFileDialog as filedialog
 	
+
 # put usage of cmocan in here but kind of an ugly implementation
+	
 
 # how to add comparing variables in debug mode
 ### add computational varname To list
@@ -64,14 +70,12 @@ else:
 #self.varlist=list(self.varlist)+[varname,]
 #self.vardict[varname]=varname
 #self.ncs[varname]={varname:self.ncs[self.vardict[varname1]][varname1]-self.ncs[self.vardict[varname2]][varname2]}
-#phi = 0 #porosity
-# cumulated sedimient flux
-#self.ncs[varname]={varname:((self.ncs[self.vardict[varname1]][varname1]-self.ncs[self.vardict[varname2]][varname2])*3600/(2650*1-phi)).cumsum()}
-#self.varlist=list(np.sort(self.varlist))
+#self.varlist=np.sort(self.varlist)
 #self.combo['values']=np.sort(self.combo['values']+(varname,))
 
 #add diff mode
 
+	
 class param:		
 	"""	functions for param.in for reading and editing. Operates in local directory """
 	import os
@@ -122,6 +126,7 @@ class param:
 			fout.write(line)		
 
 		fout.close()		
+		# load updated param.nml
 		print('updated param.nml has been loaded and will be accessed by get_parameters')	
 		f=open(outdir+outname)	
 		self.lines=f.readlines()
@@ -129,13 +134,16 @@ class param:
 	
 
 class Window(tk.Frame):
-    plt.ion() # notwendig  yes?    
+    plt.ion() # notwendig ?    
+	
+
 		
     def __init__(self,master=None,ncdirsel=None,use_cmocean=use_cmocean):
         tk.Frame.__init__(self, master)               
         self.master = master
         self.use_cmocean=use_cmocean
         self.init_window(ncdirsel=ncdirsel)
+		
                     
     def find_parent_tri(self,tris,xun,yun,xq,yq,dThresh=1000):
         """ parents,ndeweights=find_parent_tri(tris,xun,yun,xq,yq,dThresh=1000)
@@ -181,13 +189,16 @@ class Window(tk.Frame):
         return parent,np.stack((w1,w2,w3)).transpose() 
 
     def schism_plotAtelems(self,nodevalues):
-        ph=plt.tripcolor(self.plotx,self.ploty,self.faces[:,:3],facecolors=self.nodevalues[self.faces[:,:3]].mean(axis=1),shading='flat')
-        ch=plt.colorbar(extend='both')
+        #if self.uselonlat.get()==1:
+        #    x,y=self.lon,self.lat
+        #else:
+        #    x,y=self.x,self.y
+        ph=plt.tripcolor(self.plotx,self.ploty,self.faces[:,:3],facecolors=self.nodevalues[self.faces[:,:3]].mean(axis=1),shading='flat')#,cmap=self.cmap0)# self.cmap0plt.cm.jet# shading needs gouraud to allow correct update
+        ch=plt.colorbar()
         plt.tight_layout()
         return ph,ch
 		
     def schism_updateAtelems(self):
-
         plt.figure(self.fig0)
         if self.quiver!=0:
                 self.quiver.remove()
@@ -198,7 +209,7 @@ class Window(tk.Frame):
             lvl=str(self.fixdepth.get()+' m')
         else:
             lvl=self.lvl
-        #from IPython import embed; embed()	            
+            
         if self.shape==(self.nt,self.nnodes,self.nz):
             if self.CheckFixZ.get()==0:
                 self.nodevalues=self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,self.lvl].values
@@ -224,16 +235,16 @@ class Window(tk.Frame):
             #u=self.ncs[self.hvelname][self.hvelname][0,self.total_time_index,:,self.lvl]
             #v=self.ncs[self.hvelname][self.hvelname][1,self.total_time_index,:,self.lvl]
         elif self.shape==(2,self.nt,self.nnodes): # 2 vector
-            u=self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:].values
-            v=self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:].values
+            #u=self.ncs[self.hvelname][self.hvelname][0,self.total_time_index,:,self.lvl]
+            #v=self.ncs[self.hvelname][self.hvelname][1,self.total_time_index,:,self.lvl]
+            #u=self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:]
+            #v=self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:]
             title='abs' + self.varname
             self.nodevalues=np.sqrt(u*u+v*v)
-            u=np.ma.masked_array(u,mask=self.drynodes)
-            v=np.ma.masked_array(v,mask=self.drynodes)
-			
             #self.nodevalues=np.ma.masked_array(self.nodevalues,mask=np.isnan(self.nodevalues))
             #u=np.ma.masked_array(u,mask=np.isnan(u))
             #v=np.ma.masked_array(v,mask=np.isnan(v))
+			
         elif self.shape==(2,self.nt,self.nnodes,self.nz):
             if self.CheckFixZ.get()==0:
                 #speed up for old io:
@@ -247,29 +258,18 @@ class Window(tk.Frame):
                 u=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,iabove]
                 v=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,iabove]
             self.nodevalues=np.sqrt(u*u+v*v)
-            u=np.ma.masked_array(u,mask=self.drynodes)
-            v=np.ma.masked_array(v,mask=self.drynodes)
             #self.nodevalues=np.ma.masked_array(self.nodevalues,mask=np.isnan(self.nodevalues))
             #u=np.ma.masked_array(u,mask=np.isnan(u))
             #v=np.ma.masked_array(v,mask=np.isnan(v))
             title='abs ' + self.varname    
-        else:
-            print('variable shape missmatch - happened e.g. for unfinished runs with different outputwriting in variable files - assuming 3d file ')		
-            if self.CheckFixZ.get()==0:
-                self.nodevalues=self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,self.lvl].values
-            else: # z interpolation
-                self.nodevalues=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,:].values[self.nodeinds,iabove]
-				# optimize indexing
-                self.nodevalues=np.ma.masked_array(self.nodevalues,mask=np.isnan(self.nodevalues))
-            title=self.varname
-			
-			
+            
         if self.CheckEval.get()!=0: # evaluate on displayed variable
                 expr= self.evalex.get()
                 expr=expr[expr.index('=')+1:].replace('x','self.nodevalues').replace('A','self.A').replace('dt','self.dt')
                 self.nodevalues=eval(expr)    
                 
         if self.varname != 'depth':
+            #title=self.varname+' @ ' + str(self.reftime + dt.timedelta(seconds=np.int(self.ncs[self.filetag]['time'][self.total_time_index]))) + ' level= ' + str(lvl)
             title=self.titlegen(self.lvl)
         else:
             title=self.varname
@@ -322,7 +322,14 @@ class Window(tk.Frame):
                 #self.quiver=plt.quiver(np.concatenate((self.x[qloc],(xref,))),np.concatenate((self.y[qloc],(yref,))),np.concatenate((u[qloc],(vmax,))),np.concatenate((v[qloc],(0,))),scale=2*vmax,scale_units='inches') 
                 self.quiver=plt.quiver(np.concatenate((self.plotx[qloc],(xref,))),np.concatenate((self.ploty[qloc],(yref,))),np.concatenate((u[qloc],(vmax,))),np.concatenate((v[qloc],(0,))),scale=2*vmax,scale_units='inches') 
                 self.arrowlabel=plt.text(xref,yref,'\n'*3+str(np.round(vmax,4))+' m/s')
- 
+            
+        # remove annotations if figure 2 closed
+		#org
+        #if self.fig1 not in plt.get_fignums() and (len(self.anno)>0) :
+        #    for item in self.anno:
+        #        item.remove()
+        #    self.anno=[]
+			
 		# multifig
         for fignr in self.plot_windows.keys():
             anno=self.plot_windows[fignr]['anno']
@@ -337,42 +344,36 @@ class Window(tk.Frame):
         print("done plotting ")
 
     def update_plots(self):
+        # only draw artist	
+        #plt.figure(1).gca().draw_artist(self.ph)
+		# unnecessary now? faster woitout
+        #plt.figure(figi).canvas.draw()
+        #plt.figure(figi).canvas.flush_events() # flush gui events
         for figi in plt.get_fignums()[1:]:
+            #plt.figure(figi).canvas.draw()
+            #plt.figure(figi).canvas.flush_events() # flush gui events
             try:
                 plt.clim(self.clim) # not sure    
             except:
-                #print('error updating clim')			                
+                print('error updating clim')			                
                 pass
 				
-	#def trigger_extractions(self):			
-    #    nr=self.fignums
-    #    self.plot_windows[self.fignums]={'fh':fig2,'nr':nr,'anno':anno,'type':self.timeseries,'coords':self.coords.copy(),'extract':self.extract,'xs':self.xs.copy()}
-    #    self.plot_windows[self.fignums]['p0']=self.pt0i
-    #    self.plot_windows[self.fignums]['varname']=self.varname
-    #    self.plot_windows[self.fignums]['setup']=self.active_setup				
-    #
-    #    for fignr in self.plot_windows.keys():
-    #        extract=self.plot_windows[fignr]['extract']
-	#		
-	#		# overwrite transect plots
-    #        if fignr in plt.get_fignums() and (extract==self.profiles or extract==self.transect_callback):
-    #            self.activefig=self.plot_windows[fignr]['nr']
-    #            self.xs=self.plot_windows[fignr]['xs'].copy()
-    #            self.coords=self.plot_windows[fignr]['coords'].copy()
-    #            extract(self.plot_windows[fignr]['coords'])
-    #        else:        
-    #            self.plot_windows.pop(fignr)			
-			
-			        
     def titlegen(self,lvl):
-        prefix=['',' $\Delta$ '][ self.CheckDiff.get()]	
         if self.oldio:
-                return prefix+self.varname+' @ ' + str(self.ncs[self.filetag]['time'][self.total_time_index].values)[:16] + ' level= ' + str(lvl)
+                return self.varname+' @ ' + str(self.ncs[self.filetag]['time'][self.total_time_index].values)[:16] + ' level= ' + str(lvl)
         else: # new io
-                return prefix+self.varname+' @ ' + str(self.reftime + dt.timedelta(seconds=np.int(self.ncs[self.filetag]['time'][self.total_time_index]))) + ' level= ' + str(lvl)		
-
+                return self.varname+' @ ' + str(self.reftime + dt.timedelta(seconds=np.int(self.ncs[self.filetag]['time'][self.total_time_index]))) + ' level= ' + str(lvl)		
+		
 				
-    def load_setup_data(self,ncdirsel=None):
+    def init_window(self,ncdirsel=None):
+        self.pack(fill=tk.BOTH,expand=1)
+        self.fig0=len(plt.get_fignums())+1
+        self.plot_windows={}  
+        #self.fig1=self.fig0+1
+        self.fignums=1
+        self.figs=[]    #self.figs=[]  plt.get_fignums()
+        self.annos=[]
+		
         # load files    
         if ncdirsel==None:
             print("navigate into schsim run directory (containing param.nml)")
@@ -394,23 +395,24 @@ class Window(tk.Frame):
             print('found schout.nc output format')
             self.oldio=True
 		
+
         self.files=[] 		
         if self.oldio:
             for iorder in range(6): # check for schout_nc files until 99999
                 self.files+=glob.glob(self.combinedDir+'schout_'+'?'*iorder+'.nc')
-            self.stack_nrs=[int(file[file.rfind('_')+1:file.index('.nc')]) for file in self.files]
-            self.files=list(np.asarray(self.files)[np.argsort(self.stack_nrs)])
-            self.stack_nrs=list(np.asarray(self.stack_nrs)[np.argsort(self.stack_nrs)])
+            nrs=[int(file[file.rfind('_')+1:file.index('.nc')]) for file in self.files]
+            self.files=list(np.asarray(self.files)[np.argsort(nrs)])
+            nrs=list(np.asarray(nrs)[np.argsort(nrs)])
             self.nstacks=len(self.files)
             print('found ' +str(self.nstacks) +' stack(s)')
-            self.stack0=np.int(self.stack_nrs[0])
+            self.stack0=np.int(nrs[0])
             
             # initialize extracion along files # check ofr future if better performance wih xarray
-            ncs={'schout':[]}
-            ncs['schout']=xr.concat([ xr.open_dataset(self.combinedDir+'schout_'+str(nr)+'.nc').chunk() for nr in self.stack_nrs],dim='time')
-            self.ncv=ncs['schout'].variables
+            self.ncs={'schout':[]}
+            self.ncs['schout']=xr.concat([ xr.open_dataset(self.combinedDir+'schout_'+str(nr)+'.nc').chunk() for nr in nrs],dim='time')
+            self.ncv=self.ncs['schout'].variables
             try:
-                ncs['schout']=xr.concat([ xr.open_dataset(self.combinedDir+'schout_'+str(nr)+'.nc').chunk() for nr in self.stack_nrs],dim='time')
+                self.ncs['schout']=xr.concat([ xr.open_dataset(self.combinedDir+'schout_'+str(nr)+'.nc').chunk() for nr in nrs],dim='time')
             except:
                 print("error loading via MFDataset - time series and hovmoeller diagrams wont work")
                 pass		
@@ -432,7 +434,7 @@ class Window(tk.Frame):
                     if  self.ncv[vari].shape[-1]==2:
                         vector_vars.append(vari)		
                         self.vardict[vari]=vari			
-                        ncs[vari] ={vari: xr.concat([ncs['schout'][vari].sel(two=0),ncs['schout'][vari].sel(two=1)], dim='ivs')}
+                        self.ncs[vari] ={vari: xr.concat([self.ncs['schout'][vari].sel(two=0),self.ncs['schout'][vari].sel(two=1)], dim='ivs')}
                     else:
                         self.vardict[vari]='schout'		
             self.varlist=list(self.vardict.keys())
@@ -440,60 +442,42 @@ class Window(tk.Frame):
             self.bindexname='node_bottom_index'
             self.zcorname='zcor'			
             self.dryvarname='wetdry_elem'
-            self.drynodename='wetdry_node'
             self.hvelname='hvel'
             self.vertvelname='vertical_velocity'			
 			# work around to map old velocity as new velocity formatted
 
-            strdte=[np.float(digit) for digit in ncs[self.filetag]['time'].attrs['base_date'].split()]
+            strdte=[np.float(digit) for digit in self.ncs[self.filetag]['time'].attrs['base_date'].split()]
             self.reftime=dt.datetime.strptime('{:04.0f}-{:02.0f}-{:02.0f} {:02.0f}:{:02.0f}:{:02.0f}'.format(strdte[0],strdte[1],strdte[2],strdte[3],strdte[3],0),'%Y-%m-%d %H:%M:%S')
-            self.nclist.append(ncs)
-            self.w0.config(to=len(self.nclist)-1)
-			
-            if len(self.nclist)>1:
-                ncdiff={}
-                for key in  self.nclist[0].keys():
-                    if type(self.nclist[1][key])==dict:
-                        if ('zcoor' in key.lower()) or ('zcor' in key.lower()):
-                            ncdiff[key]=self.nclist[1][key][key]						
-                        else:						
-                            ncdiff[key]=self.nclist[1][key][key]-self.nclist[0][key][key]
-                    else:
-                        ncdiff[key]=self.nclist[1][key]-self.nclist[0][key]
-                self.diffnclist.append(ncdiff)
-                self.nstacks=self.nstacks0
-            else:
-                self.nstacks0=self.nstacks			
 			
         else: # new io
             self.hvelname='horizontalVel'
             self.filetag='out2d'
             self.bindexname='bottom_index_node'
             self.zcorname='zCoordinates'
-            self.dryvarname='dryFlagElement'
-            self.drynodename='dryFlagNode'			
+            self.dryvarname='dryFlagElement'		
             self.vertvelname='verticalVelocity'			
             for iorder in range(8): # check for schout_nc files until 99999
                 self.files+=glob.glob(self.combinedDir+'out2d_'+'?'*iorder+'.nc')
-            self.stack_nrs=[int(file[file.rfind('_')+1:file.index('.nc')]) for file in self.files]
-            self.files=list(np.asarray(self.files)[np.argsort(self.stack_nrs)])
-            self.stack_nrs=list(np.asarray(self.stack_nrs)[np.argsort(self.stack_nrs)])
+            nrs=[int(file[file.rfind('_')+1:file.index('.nc')]) for file in self.files]
+            self.files=list(np.asarray(self.files)[np.argsort(nrs)])
+            nrs=list(np.asarray(nrs)[np.argsort(nrs)])
             self.nstacks=len(self.files)
-            self.stack0=np.int(self.stack_nrs[0])
+            self.stack0=np.int(nrs[0])
             print('found ' +str(self.nstacks) +' stack(s)')
     
+    		
             # file access        
     		# vars # problem sediment
-            varfiles=[file[file.rindex('/')+1:file.rindex('_')] for file in glob.glob(self.combinedDir+'*_'+str(self.stack_nrs[0])+'.nc') ]
-            ncs=dict.fromkeys(varfiles)
+            varfiles=[file[file.rindex('/')+1:file.rindex('_')] for file in glob.glob(self.combinedDir+'*_'+str(nrs[0])+'.nc') ]
+            self.ncs=dict.fromkeys(varfiles)
             try:
                 for var in varfiles:
-                    ncs[var]=xr.concat([ xr.open_dataset(self.combinedDir+var+'_'+str(nr)+'.nc').chunk() for nr in self.stack_nrs],dim='time')
+                    self.ncs[var]=xr.concat([ xr.open_dataset(self.combinedDir+var+'_'+str(nr)+'.nc').chunk() for nr in nrs],dim='time')
             except:	
-                self.stack_nrs=list(np.asarray(self.stack_nrs)[np.argsort(self.stack_nrs)])[:-1]
+                nrs=list(np.asarray(nrs)[np.argsort(nrs)])[:-1]
                 self.nstacks=len(self.files)-1
                 for var in varfiles:
-                    ncs[var]=xr.concat([ xr.open_dataset(self.combinedDir+var+'_'+str(nr)+'.nc').chunk() for nr in self.stack_nrs],dim='time')		
+                    self.ncs[var]=xr.concat([ xr.open_dataset(self.combinedDir+var+'_'+str(nr)+'.nc').chunk() for nr in nrs],dim='time')		
 		
 
            # load variable list from netcdf #########################################            
@@ -501,11 +485,11 @@ class Window(tk.Frame):
          'SCHISM_hgrid_node_y', 'bottom_index_node', 'SCHISM_hgrid_face_x', 'SCHISM_hgrid_face_y', 
          'ele_bottom_index', 'SCHISM_hgrid_edge_x', 'SCHISM_hgrid_edge_y', 'edge_bottom_index',
          'sigma', 'dry_value_flag', 'coordinate_system_flag', 'minimum_depth', 'sigma_h_c', 'sigma_theta_b', 
-         'sigma_theta_f', 'sigma_maxdepth', 'Cs', 'dryFlagElement', 'dryFlagSide'] # exclude for plot selection
+         'sigma_theta_f', 'sigma_maxdepth', 'Cs', 'dryFlagElement'] # exclude for plot selection
             vector_vars=[] # stack components for convenience	  
             self.vardict={} # variable to nc dict relations
-            for nci_key in ncs.keys():
-                for vari in ncs[nci_key].keys():
+            for nci_key in self.ncs.keys():
+                for vari in self.ncs[nci_key].keys():
                     if vari not in exclude:
                         self.vardict[vari]=nci_key	
                     if vari[-1] =='Y': 
@@ -518,63 +502,22 @@ class Window(tk.Frame):
                 varY=vari_vec+'Y'	  
                 self.varlist+=[vari_vec]
                 self.vardict[vari_vec]=vari_vec
-                ncs[vari_vec] ={vari_vec: xr.concat([ncs[self.vardict[varX]][varX], ncs[self.vardict[varY]][varY]], dim='ivs')}
-
+                self.ncs[vari_vec] ={vari_vec: xr.concat([self.ncs[self.vardict[varX]][varX], self.ncs[self.vardict[varY]][varY]], dim='ivs')}
+    
+            #self.varlist=list(np.sort(self.varlist))	
+    
             p=param(self.runDir+'/param.nml')
             self.reftime=dt.datetime(np.int(p.get_parameter('start_year')),
             np.int(p.get_parameter('start_month')),
             np.int(p.get_parameter('start_day')),
-            np.int(p.get_parameter('start_hour')),0,0)		
-
-            self.nclist.append(ncs) # add ncs to list
-            self.w0.config(to=len(self.nclist)-1)
-			
-        self.nts.append(len(ncs[self.filetag]['time']))
-		#
-        if len(self.nclist)>1:
-            ncdiff={}
-            for key in  self.nclist[0].keys():
-                if type(self.nclist[1][key])==dict:
-                    ncdiff[key]=self.nclist[1][key][key]-self.nclist[0][key][key]					
-                else:
-                    if ('zcoor' in key.lower()) or ('zcor' in key.lower()):
-                        ncdiff[key]=self.nclist[1][key]
-                    else:						
-                        ncdiff[key]=self.nclist[1][key]-self.nclist[0][key]
-			# reset dryelems
-            ntmin=np.min((self.nts[0],self.nts[len(self.nclist)-1]))
-            ncdiff[self.filetag][self.dryvarname]=np.maximum(self.nclist[1][self.filetag][self.dryvarname][:ntmin,:],self.nclist[0][self.filetag][self.dryvarname][:ntmin,:])				
-						
-            self.diffnclist.append(ncdiff)
-            self.nstacks=self.nstacks0
-        else:
-            self.nstacks0=self.nstacks
-			
-    def init_window(self,ncdirsel=None):
-        self.pack(fill=tk.BOTH,expand=1)
-        self.fig0=len(plt.get_fignums())+1
-        self.plot_windows={}  
-        self.fignums=1
-        self.figs=[]    #self.figs=[]  plt.get_fignums()
-        self.annos=[]
-        self.pt0=0      # coutner for annotation enumerator    
-		
-        # load grid and netcf file access for setup parotally used later	
-        self.nclist=[]
-        self.diffnclist=[]
-        self.nts=[] # number of time steps for different setups
-		# mv setup gui variable here to set variable beore first call
-        self.stp_tk = tk.IntVar(self,value=0)
-        self.w0=tk.Spinbox(self, from_=0,to=0,width=5,validate='all',textvariable=self.stp_tk) # try command and
-        self.load_setup_data(ncdirsel)
-        self.active_setup=0
-        self.ncs=self.nclist[0]		
+            np.int(p.get_parameter('start_hour')),0,0)
             
-        #self.reftime=dt.datetime.strptime(self.nc['time'].units[14:33],'%Y-%m-%d %H:%M:%S')
+            #self.reftime=dt.datetime.strptime(self.nc['time'].units[14:33],'%Y-%m-%d %H:%M:%S')
         self.varlist=list(np.sort(self.varlist))		
         self.nt,self.nnodes,self.nz,=self.ncs[self.vardict[self.zcorname]][self.zcorname].shape
         self.nodeinds=range(self.nnodes)
-        
+
+			
         if self.nt == 1:
             self.faces=np.asarray(self.ncs[self.filetag]['SCHISM_hgrid_face_nodes'][:].values-1,int)
             self.x=self.ncs[self.filetag]['SCHISM_hgrid_node_x'][:].values
@@ -589,6 +532,7 @@ class Window(tk.Frame):
         except:
             self.stack_size=self.ncs[self.filetag].chunks['time'][0]
 			
+        
         try:
             lmin = self.ncs[self.filetag][self.bindexname][0,:].values
         except:
@@ -602,16 +546,17 @@ class Window(tk.Frame):
                     lmin = lmin+1
         self.ibbtm=self.ncs[self.filetag][self.bindexname][0,:].values-1    
 		
+		
         self.mask3d=np.zeros((self.nnodes,self.nz),bool) # mask for 3d field at one time step
         for inode in range(self.nnodes):
             self.mask3d[inode,:self.ibbtm[inode]]=True # controlled that corresponding z is depths		
         self.mask_hvel=np.tile(self.mask3d,(2,1,1))
         self.mask_wind=self.mask_hvel[:,:,0]
         # next neighbour node look up tree
-        self.xy_nn_tree = cKDTree([[self.x[i],self.y[i]] for i in range(len(self.x))]) # cart
-        self.ll_nn_tree = cKDTree([[self.lon[i],self.lat[i]] for i in range(len(self.x))])# lonlat
-        
+        self.xy_nn_tree = cKDTree([[self.x[i],self.y[i]] for i in range(len(self.x))]) # next neighbour search tree	                                     
+        self.ll_nn_tree = cKDTree([[self.lon[i],self.lat[i]] for i in range(len(self.x))]) # next neighbour search		
         self.minavgdist=np.min(np.sqrt(np.abs(np.diff(self.x[self.faces[:,[0,1,2,0]]],axis=1))**2+np.abs(np.diff(self.y[self.faces[:,[0,1,2,0]]],axis=1))**2).mean(axis=1))
+        #from IPython import embed; embed() #self.maxavgdist=np.max(np.sqrt(np.abs(np.diff(self.x[self.faces[:,[0,1,2,0]]],axis=1))**2+np.abs(np.diff(self.y[self.faces[:,[0,1,2,0]]],axis=1))**2).mean(axis=1))
 
         # mesh for mesh visualisazion        
         xy=np.c_[self.x,self.y]
@@ -644,12 +589,12 @@ class Window(tk.Frame):
              self.origins=np.arange(self.faces.shape[0])
         ##########################################  
         self.dryelems=self.ncs[self.filetag][self.dryvarname][0,:][self.origins]
-        self.drynodes=np.asarray(self.ncs[self.filetag][self.drynodename][0,:],bool)		
 
         # next neighbour element look up tree
         self.cx,self.cy=np.mean(self.x[self.faces],axis=1),np.mean(self.y[self.faces],axis=1)
         elcoords=[[self.cx[i],self.cy[i]] for i in range(len(self.cx))] # pooint pairs of nodes
         self.elem_nn_tree = cKDTree(elcoords) # next neighbour search tree	      
+
 
         ########################################################################## 
         #### GUI ELEMENTS ##############
@@ -677,25 +622,7 @@ class Window(tk.Frame):
         menubar.add_cascade(label="Extract", menu=extractmenu)
         self.master.config(menu=menubar)
 
-		# add setup sel
         row=0
-        L1=tk.Label(self,text='setup:')
-        L1.grid(row=row,column=0)#.place(x=260,y=0)
-		
-		# variable declaration moved as workadournd
-        #self.stp_tk = tk.IntVar(self,value=0)
-        #self.w0=tk.Spinbox(self, from_=0,to=len(self.nclist)-1,width=5,validate='all',textvariable=self.stp_tk) # try command and
-        self.w0.grid(row=row,column=1)
-        self.stp_tk.trace("w",self.stp_callback) # activate call back after set        
-		
-        add_setup = tk.Button(self,text='add setup',command=self.load_setup_data)
-        add_setup.grid(row=row,column=2)
-		
-        self.CheckDiff = tk.IntVar(value=0) # move before  plotAtElems definition to avoid error
-        checkdiff=tk.Checkbutton(self,text='show diff',variable=self.CheckDiff,command=self.stp_callback)#,command=self.CheckDiff_callback)
-        checkdiff.grid(sticky = tk.W,row=row,column=3)
-		
-        row=1
         L1=tk.Label(self,text='variable')
         L1.grid(row=row,column=0)#.place(x=260,y=0)
 
@@ -732,13 +659,14 @@ class Window(tk.Frame):
         w4.grid(row=row,column=1)
         self.lvl_tk.trace("w",self.lvl_callback) # activate call back after set
 
-        self.stacks=self.stack_nrs
+        self.stacks=nrs
         self.stack = tk.IntVar(self)
-        self.stack.set(self.stack_nrs[0]) 
+        self.stack.set(nrs[0]) 
         self.stack.trace("w",self.stack_callback)
-        self.current_stack=self.stack_nrs[0]
-        w=tk.Spinbox(self, values=self.stack_nrs, width=5,validate='all',textvariable=self.stack) # try command and set values in function with checking
+        self.current_stack=nrs[0]
+        w=tk.Spinbox(self, values=nrs, width=5,validate='all',textvariable=self.stack) # try command and set values in function with checking
         w.grid(row=row,column=2)
+
 
         self.ti_tk = tk.IntVar(self)
         self.ti=0
@@ -871,6 +799,7 @@ class Window(tk.Frame):
         llbox=tk.Checkbutton(self,text='use lonlat',variable=self.uselonlat,command=self.lonlat_callback)
         llbox.grid(sticky = tk.W,row=row,column=2)
 		
+		
         row+=1
         h2=tk.Label(self,text='\n Extract:       ',anchor='w',font='Helvetica 10 bold')
         h2.grid(row=row,column=0)
@@ -910,10 +839,9 @@ class Window(tk.Frame):
              plt.set_cmap('cmo.deep')			 
         else:
              #self.cmap0=plt.cm.jet
-             plt.set_cmap(plt.cm.jet)
+             plt.set_cmap(plt.cm.jet)			 
         self.plotx,self.ploty=self.x,self.y		
         self.ph,self.ch=self.schism_plotAtelems(self.nodevalues)
-        #self.cmap_callback()			 
         self.title=self.varname		
         plt.title(self.varname)
         #plt.tight_layout()
@@ -943,10 +871,6 @@ class Window(tk.Frame):
 		#debug button
         debug = tk.Button(self,text='debug',command=self.debug_callback)
         debug.grid(row=row,column=2)
-
-		#debug button
-        debug = tk.Button(self,text='close figs',wraplength=36,command=self.close_callback)
-        debug.grid(row=row,column=3)
 		
 
     ####### call back
@@ -957,86 +881,27 @@ class Window(tk.Frame):
             #self.ivs=self.ncs[self.vardict[self.varname]][self.varname].ivs
         #    self.ivs=1			
 		
-        #if ('vertical' in self.varname.lower()):
-        #    self.ivs=1		
-        #if ('vel' in self.varname.lower()) or ('wind' in self.varname.lower()): # all vector here			
-        #    self.ivs=2		
-        #else:
-        #    self.ivs=1
+        if ('vertical' in self.varname.lower()):
+            self.ivs=1		
+        if ('vel' in self.varname.lower()) or ('wind' in self.varname.lower()): # all vector here			
+            self.ivs=2		
+        else:
+            self.ivs=1
         self.shape=self.ncs[self.vardict[self.varname]][self.varname].shape        
-        self.ivs=1+(self.shape[0]==2)
         self.schism_updateAtelems()
 
         #update extract plots in figure 2
         #if self.fig1 in plt.get_fignums():
         #        self.extract(coords=self.coords)   
 
-		#updarte only for current period
-        #self.plot_windows[fignr]['extract'](self.plot_windows[fignr]['coords'])
-		# update only las figure coordinates
-		# all transects and last open time series plot
-        figrecord=list(self.plot_windows.keys())
-        coords_re_extract=[]		
-        count=0
-        for fignr in figrecord[::-1]: 
-            if fignr in plt.get_fignums():		
-                extract=self.plot_windows[fignr]['extract']
-                self.coords=self.plot_windows[fignr]['coords'].copy()
-                if fignr in plt.get_fignums() and (extract==self.profiles or extract==self.transect_callback):
-                    self.activefig=self.plot_windows[fignr]['nr']			
-                    self.xs=self.plot_windows[fignr]['xs'].copy()
-                    extract(self.plot_windows[fignr]['coords'])
-                    count+=1
-                    #print(count)					
-				# for time series redp only ones	
-                elif len(coords_re_extract)==0 or (self.coords not in coords_re_extract):
-                    extract(self.plot_windows[fignr]['coords'])
-                    coords_re_extract.append(self.coords)
-                    count+=1
-                    #print(count)
-                if count==1:
-                    print('extracting variable at coordinates corresponding to open figures')				
-                #break
-			
 		# multifig
-       #figrecord=list(self.plot_windows.keys())
-       ##from IPython import embed; embed()
-       ##coords=[self.plot_windows[fignr]['coords'] for fignr in figrecord]
-       ##setups=[self.plot_windows[fignr]['setup'] for fignr in figrecord if fignr in plt.get_fignums()]
-       ##varnames=[self.plot_windows[fignr]['varname'] for fignr in figrecord if fignr in plt.get_fignums()]
-		## if variable not already plotted for coordinates setup and diff type			
-       ##self.plot_windows[self.fignums]['diff']		
-		#
-		## check to prevent duuplicate figures
-		## check if in line loops faster or tracked dictionary
-       #setups=[]
-       #varnames=[] 
-       #diffs=[]
-       ##diffi=self.CheckDiff.get()
-       #coords=[]
-       #for fignr in figrecord: 
-       #    if fignr in plt.get_fignums():
-       #        setups.append(self.plot_windows[fignr]['setup'] )
-       #        varnames.append(self.plot_windows[fignr]['varname'])
-       #        diffs.append(self.plot_windows[fignr]['diff'])
-       #        coords.append(self.plot_windows[fignr]['coords'])
-       #setups=np.asarray(setups)
-       #varnames=np.asarray(varnames)
-       #diffs=np.asarray(diffs)
-       #coords=np.asarray(coords)
-		#		
-		#		
-       ## update multiple figures or only one? I choose only one for current variable now. all now				
-       #for fignr in figrecord: #self.plot_windows.keys():
-       #    #if fignr in plt.get_fignums():
-       ## if variable not already plotted for coordinates setup and diff type							
-       ##if (True not in (np.asarray(varnames)==self.varname)	& (np.asarray(setups)==self.active_setup) & (np.asarray(diffs)==diffi)):		
-       #    self.activefig=self.plot_windows[fignr]['nr']
-       #    self.xs=self.plot_windows[fignr]['xs'].copy()
-       #    self.coords=self.plot_windows[fignr]['coords'].copy()
-       #    diffi=self.plot_windows[fignr]['diff']
-       #    if (fignr in plt.get_fignums()) and ( True not in ( (varnames==self.varname)	& (setups==self.active_setup) & (coords==self.coords) & (diffs==diffi))):	
-       #        self.plot_windows[fignr]['extract'](self.plot_windows[fignr]['coords'])
+        for fignr in self.plot_windows.keys():
+            if fignr in plt.get_fignums():
+                #from IPython import embed; embed()
+                self.activefig=self.plot_windows[fignr]['nr']
+                self.xs=self.plot_windows[fignr]['xs'].copy()
+                self.coords=self.plot_windows[fignr]['coords'].copy()
+                self.plot_windows[fignr]['extract'](self.plot_windows[fignr]['coords'])
 				
     def variable_selection(self,event): #combobox callback done differntly
         self.variable.set(self.combo.get())        #selection = self.combo.get()
@@ -1045,19 +910,7 @@ class Window(tk.Frame):
         self.lvl=self.lvl_tk.get()
         print("selected level " +  str(self.lvl))
         self.schism_updateAtelems()
-		
-    def stp_callback(self,*args): # select setip # 
-        self.active_setup=self.stp_tk.get()
 
-        if self.CheckDiff.get()==0:
-            print("selected setup " +  str(self.active_setup))
-            self.ncs=self.nclist[self.active_setup]
-        else:	
-            print("selected setup difference " +  str(self.active_setup) + ' - 0') 
-            self.ncs=self.diffnclist[self.active_setup-1]
-        self.nt=self.nts[self.active_setup]
-        self.variable_callback()
-	
     def stack_callback(self,*args): # load new stack # 
         stacknow=self.stack.get()
         if stacknow!=self.current_stack:
@@ -1066,9 +919,13 @@ class Window(tk.Frame):
             else:
                 self.file=self.combinedDir+'schout_'+str(stacknow)+'.nc' #self.files[self.stack.get()-1] 
                 print("loading" +  self.file)
+                #self.nc.close()
+                #self.nc=Dataset(self.file)
+                #self.ncv=self.nc.variables
                 self.ti_tk.set(0) 
                 self.ti=0
                 self.current_stack=stacknow
+                #self.times=self.ncs['out2d']['time'][:]#self.ncv['time'][:]
 
     def ti_callback(self,*args): #set timestep
         self.ti=self.ti_tk.get()
@@ -1076,8 +933,8 @@ class Window(tk.Frame):
         self.total_time_index=self.ti+self.stack_size*(self.current_stack-self.stack0) 
 		
         self.dryelems=self.ncs[self.filetag][self.dryvarname][self.total_time_index,:][self.origins]
-        self.drynodes=np.asarray(self.ncs[self.filetag][self.drynodename][self.total_time_index,:],bool)	
         self.schism_updateAtelems()
+
 
         for fignr in self.plot_windows.keys():
             extract=self.plot_windows[fignr]['extract']
@@ -1088,6 +945,7 @@ class Window(tk.Frame):
                 extract(self.plot_windows[fignr]['coords'])
             else:        
                 self.plot_windows.pop(fignr)
+				
 
     def playcallback(self,*args):
             count=(self.current_stack-self.stacks[0])*self.stack_size+self.ti_tk.get()
@@ -1106,11 +964,7 @@ class Window(tk.Frame):
     def debug_callback(self,*args):
          print('open command variables accessible self. exit interactive mode via exit())') 
          from IPython import embed; embed()	
-
-    def close_callback(self,*args):
-        for fignr in list(plt.get_fignums())[1:]:		 
-            plt.close(fignr)
-            self.pt0=0
+							
     def get_layer_weights(self,dep): 
         print('calculating weights for vertical interpolation')
         ibelow=np.zeros(self.nnodes,int)
@@ -1131,6 +985,7 @@ class Window(tk.Frame):
         iabove2=iabove[inodes]
 
         d2=zcor[inodes,iabove2]-dep
+        d1=dep-zcor[inodes,ibelow2]
         d1=dep-zcor[inodes,ibelow2]
         ivalid=d1>0.0
         iset=d1==0.0
@@ -1158,17 +1013,14 @@ class Window(tk.Frame):
                #cmap='cmo.{:s}'.format(self.cmap.get())# # works
                cmap=eval('cmo.{:s}'.format(self.cmap.get()))
                cmap.set_bad('gray')
-               cmap.set_over('purple')
-               cmap.set_under('black')
                cmap.name='cmo.{:s}'.format(self.cmap.get())
+               #plt.set_cmap(cmap)			
                self.ph.set_cmap(cmap)			                  
-
         else: #matplotlib
                cmap=plt.cm.get_cmap(self.cmap.get())
                cmap.set_bad('gray')
-               cmap.set_over('purple')
-               cmap.set_under('black')
-               self.ph.set_cmap(cmap)				   
+               #plt.set_cmap(self.cmap.get())	
+               self.ph.set_cmap(self.cmap.get())				   
         for i in plt.get_fignums():#reversed(plt.get_fignums()[:-1]):
                plt.figure(i) 
                plt.set_cmap(cmap)
@@ -1189,18 +1041,6 @@ class Window(tk.Frame):
                 self.quadpc.remove()
             self.mesh_plot=0
         self.update_plots()  
-
-    # this was embedded in stp clalback and variable trace
-    def CheckDiff_callback(self,*args):        
-        """ toggle plot setup or differences """
-        if (self.CheckDiff.get()==1): 
-            print('plotting differences setup {:d} - setup 0'.format(self.active_setup) )		
-            self.ncs=self.diffnclist[self.active_setup-1]
-            #self.cmap.set() depends on cmocean or not
-        elif  (self.CheckDiff.get()==0): 
-            self.ncs=self.nclist[self.active_setup]
-            print('plotting  setup {:d} '.format(self.active_setup) )		
-            #self.cmap.set()			
  
     def lonlat_callback(self,*args):     
         if self.uselonlat.get()==1:
@@ -1211,20 +1051,20 @@ class Window(tk.Frame):
         plt.clf()
         self.ph,self.ch=self.schism_plotAtelems(self.nodevalues)
         self.schism_updateAtelems()
+
 		
     def ask_coordinates(self,n=-1,coords=None,interp=False):
             plt.figure(self.fig0)
             if coords==None:	 		
                 plt.title("click coordinates in Fig.1. Press ESC when finished")
                 print("click coordinates in Fig.1. Press ESC when finished")
-                self.pt0i=self.pt0 # keep track of point annotations			
+			
                 self.update_plots()
                 plt.figure(self.fig0)
                 self.coords=plt.ginput(n,show_clicks='True')
                 plt.title(self.titlegen(self.lvl))
             else:
             	self.coords=coords
-            	self.pt0i=self.plot_windows[self.activefig]['p0']
             # plot coordinates on main figure / remove potential old coordinates
             #if (len(self.anno)>0) :
             #	try:
@@ -1290,11 +1130,11 @@ class Window(tk.Frame):
                 #self.anno.append(plt.text(x[-1],y[-1],'P '+str(self.npt-1)))
 
                 anno=plt.plot(x,y,'k.-')        
-                anno.append(plt.text(x[0],y[0],'P '+str(self.pt0i+0)))
-                for ix in range(25,len(x),25):
-                    anno.append(plt.text(x[ix],y[ix],'P '+str(self.pt0i+ix)))
                 anno.append(plt.text(x[0],y[0],'P '+str(0)))
-                anno.append(plt.text(x[-1],y[-1],'P '+str(self.pt0i+self.npt-1)))
+                for ix in range(25,len(x),25):
+                    anno.append(plt.text(x[ix],y[ix],'P '+str(ix)))
+                anno.append(plt.text(x[0],y[0],'P '+str(0)))
+                anno.append(plt.text(x[-1],y[-1],'P '+str(self.npt-1)))
 
             else:    
                 if self.uselonlat.get()==0:			
@@ -1307,12 +1147,9 @@ class Window(tk.Frame):
                 for i,coord in enumerate(self.coords):
                     xi,yi=coord
                     #self.anno.append(plt.text(xi,yi,'P '+str(i)))
-                    anno.append(plt.text(xi,yi,'P '+str(self.pt0i+i)))					
+                    anno.append(plt.text(xi,yi,'P '+str(i)))					
                 if self.npt==1:
                     self.nn=self.nn[0]
-
-            if coords==None:					
-                self.pt0+=self.npt		
             print('done interpolating transect coordinates')
 			
 	
@@ -1321,13 +1158,10 @@ class Window(tk.Frame):
 			# initilaize new plot window	
             self.fignums+=1
             plt.get_fignums()[1:]
+            #        self.figs.append(self.fignums)
             fig2=plt.figure(self.fignums)
             nr=self.fignums
             self.plot_windows[self.fignums]={'fh':fig2,'nr':nr,'anno':anno,'type':self.timeseries,'coords':self.coords.copy(),'extract':self.extract,'xs':self.xs.copy()}
-            self.plot_windows[self.fignums]['p0']=self.pt0i
-            self.plot_windows[self.fignums]['varname']=self.varname
-            self.plot_windows[self.fignums]['setup']=self.active_setup
-            self.plot_windows[self.fignums]['diff']=self.CheckDiff.get()
             self.activefig=nr
 			
     def timeseries(self,coords=None):
@@ -1343,8 +1177,9 @@ class Window(tk.Frame):
 
         print('extracting timeseries for ' + self.varname + ' at coordinates: ' + str(self.coords))
         i0,i1=int(self.exfrom.get()),int(self.exto.get())
+        #self.t=self.ncs['out2d']['time'][i0:i1].values/86400
         if self.oldio:
-            self.t=self.ncs['schout']['time'].values[i0:i1]
+            self.t=self.ncs['schout']['time'].values
         else:
             self.t=np.asarray([self.reftime + dt.timedelta(seconds=ti) for ti in            self.ncs[self.filetag]['time'].values],np.datetime64)[i0:i1]
         
@@ -1365,7 +1200,19 @@ class Window(tk.Frame):
             else:
                 self.ts=self.ncs[self.vardict[self.varname]][self.varname][:,i0:i1,self.nn,self.lvl].values
 
-        prefix=['',' $\Delta$ '][ self.CheckDiff.get()]		
+        #self.fignums=1
+        #self.plot_windows={}   #excluding main windos
+        #self.figs=[]    #self.figs=[]  plt.get_fignums()
+        #self.annos=[]
+        # org			
+        #fig2=plt.figure(self.fig1)
+		
+        #self.fignums+=1
+        #plt.get_fignums()[1:]
+        #        self.figs.append(self.fignums)
+        #fig2=plt.figure(self.fignums)
+		#self.plot_windows[self.fignums]={'fh':fig2,'anno':[],'type':self.timeseries}
+        #fig2.clf()
         if self.ivs==1:
             if self.CheckEval.get()!=0:
                 expr= self.evalex.get()
@@ -1373,9 +1220,9 @@ class Window(tk.Frame):
                 self.ts=eval(expr)  
             plt.plot(self.t,self.ts)#/86400
             plt.xlabel('time')
-            plt.ylabel(prefix+self.varname)
+            plt.ylabel(self.varname)
             plt.grid()
-            self.lh=plt.legend(['P'+str(i+self.pt0i) for i in range(self.npt)],loc='upper center',bbox_to_anchor=(0.5, 1.02),ncol=6)
+            self.lh=plt.legend(['P'+str(i) for i in range(self.npt)],loc='upper center',bbox_to_anchor=(0.5, 1.02),ncol=6)
         else:
             comps=[' - u', '- v ', '- abs' ]
             for iplt in range(1,3):
@@ -1385,7 +1232,7 @@ class Window(tk.Frame):
                 plt.ylabel(self.varname + comps[iplt-1])
                 plt.grid()
                 if iplt==1:
-                    plt.legend(['P'+str(i+self.pt0i) for i in range(self.npt)],loc='upper center',bbox_to_anchor=(0.5, 1.3),ncol=6)
+                    plt.legend(['P'+str(i) for i in range(self.npt)],loc='upper center',bbox_to_anchor=(0.5, 1.3),ncol=6)
 
             if self.CheckEval.get()!=0:
                     expr= self.evalex.get()
@@ -1395,15 +1242,12 @@ class Window(tk.Frame):
             plt.subplot(3,1,3)
             plt.plot(self.t,np.sqrt(self.ts[0,:]**2+self.ts[1,:]**2))#/86400
             plt.xlabel('time')
-            plt.ylabel(prefix+self.varname + comps[2])
+            plt.ylabel(self.varname + comps[2])
             plt.grid()
         
         plt.gcf().autofmt_xdate() # format date
         plt.tight_layout()
         self.update_plots()
-		
-        if len(self.nclist) > 1:
-            plt.title('config ' + str(self.active_setup))		
         print("done extracting time series")                                     
 
     def profiles(self,coords=None):
@@ -1438,7 +1282,7 @@ class Window(tk.Frame):
             plt.plot(ps,zs)
             plt.ylabel('depth / m')
             plt.xlabel(self.varname)
-            plt.legend(['P'+str(i+self.pt0) for i in range(self.npt)])
+            plt.legend(['P'+str(i) for i in range(self.npt)])
             plt.grid()
         else:
             comps=[' - u', '- v ', '- abs' ]
@@ -1449,7 +1293,7 @@ class Window(tk.Frame):
                 plt.xlabel(self.varname + comps[iplt-1])
                 if iplt==1:
                     plt.title(str(self.reftime + dt.timedelta(seconds=np.int(self.ncs[self.filetag]['time'][self.total_time_index].values))))
-                    plt.legend(['P'+str(i+self.pt0) for i in range(self.npt)])
+                    plt.legend(['P'+str(i) for i in range(self.npt)])
                     plt.ylabel('depth / m')
                 else:
                     plt.tick_params(axis='y',labelleft='off')
@@ -1464,8 +1308,6 @@ class Window(tk.Frame):
         self.zmaxfield.delete(0, 'end')
         self.zminfield.insert(8,str(plt.gca().get_ylim()[0]))
         self.zmaxfield.insert(8,str(plt.gca().get_ylim()[1]))
-        if len(self.nclist) > 1:
-            plt.title('config ' + str(self.active_setup))		
         self.update_plots()
 
     def hovmoeller(self,coords=None):
@@ -1523,8 +1365,7 @@ class Window(tk.Frame):
         self.zminfield.insert(8,str(plt.gca().get_ylim()[0]))
         self.zmaxfield.insert(8,str(plt.gca().get_ylim()[1]))
         self.cmap_callback()# plot with chosen colormap
-        if len(self.nclist) > 1:
-            plt.title('config ' + str(self.active_setup))
+
 
     def hovmoeller_horz(self,coords=None):
         
@@ -1579,10 +1420,14 @@ class Window(tk.Frame):
         plt.colorbar()
         plt.xlabel('time')
         plt.gcf().autofmt_xdate() # format date		
-        if len(self.nclist) > 1:
-            plt.title('config ' + str(self.active_setup))
         plt.tight_layout()
+
+        #self.zminfield.delete(0, 'end')
+        #self.zmaxfield.delete(0, 'end')
+        #self.zminfield.insert(8,str(plt.gca().get_ylim()[0]))
+        #self.zmaxfield.insert(8,str(plt.gca().get_ylim()[1]))
         self.cmap_callback()# plot with chosen colormap
+
 
     def plot_transect(self,dataTrans,is2d=False):		
         # dry check nn interp
@@ -1610,11 +1455,7 @@ class Window(tk.Frame):
             ch.set_label(self.varname)
             if self.meshVar.get():
                 plt.plot(self.xs,self.zi,'k',linewidth=0.2)
-        if len(self.nclist) > 1:
-            plt.title('config ' + str(self.active_setup)+self.titlegen(np.nan))				
-        else:	
-            plt.title(self.titlegen(np.nan))     
-       		
+        plt.title(self.titlegen(np.nan))            		
         return ch
 		
 	#def add_quiv(self,dataTrans):	
@@ -1623,6 +1464,27 @@ class Window(tk.Frame):
         filename=filedialog.askopenfilename(title='opeb build point file',initialdir=self.runDir,filetypes = (('bp files', '*.bp'),('All files', '*.*')))
         m=np.loadtxt(filename,skiprows=2)[:,1:]
         self.coords=list(zip(m[:,0],m[:,1]))
+        #self.minavgdist=tk.simpledialog.askfloat(title='interp dx', prompt='Enter distance [hgrid.gr3 units i.e. m] for between point interpolation: (0: keep origonal points only)',initialvalue=250,minvalue=0)
+		#  below part worked into ask coordinates
+        #coords1=[] 
+        #if self.minavgdist != 0:
+        #    xy=np.asarray(self.coords)
+        #    dxdy=np.diff(xy,axis=0)
+        #    dr=np.sqrt((dxdy**2).sum(axis=1))
+        #    r=dxdy[:,1]/dxdy[:,0]
+        #
+        #    for i in range(len(self.coords)-1):
+        #         dx=np.linspace(0,dxdy[i,0],int(np.floor(dr[i]/self.minavgdist)))
+        #         coords1+=([(xi[0][0],xi[0][1]) for xi in zip((xy[i,:]+np.stack((dx, dx*r[i]),axis=1)))])
+        #else:
+        #    coords1=self.coords
+        #ivalid=~np.isnan(np.asarray(coords1).sum(axis=1))	
+        #xy=np.asarray(coords1)[ivalid,:]
+        #coords1=list(zip(xy[:,0],xy[:,1]))
+        #x,y=xy[:,0],xy[:,1]
+        #self.npt=ivalid.sum()#len(x)
+        #self.xs=np.tile(np.arange(self.npt),(self.nz,1)).T
+        #self.coords=coords1
         self.extract=self.transect_callback
         self.ask_coordinates(n=-1,coords=self.coords,interp=True)
         self.transect_callback(coords=self.coords)
@@ -1735,6 +1597,8 @@ class Window(tk.Frame):
                 ylim=((np.nanmin(self.dataTrans),np.nanmax(self.dataTrans))) # nan
             else:
                 ylim=((np.nanmin(self.zi),5)) # nan
+				
+				
 
             self.plot_transect(self.dataTrans,is2d)
         else: # vector
@@ -1796,6 +1660,11 @@ class Window(tk.Frame):
                 plt.xlim((self.xs.min(),self.xs.max()))	
                 if iplt==1:
                     plt.title(str(self.reftime + dt.timedelta(seconds=np.int(self.ncs[self.filetag]['time'][self.total_time_index]))))
+                    #plt.title(str(self.reftime + dt.timedelta(seconds=np.int(self.ncv['time'][self.total_time_index]))))
+                #self.update_plots()	
+            #plt.subplot(3,1,3)
+            #ch=self.plot_transect(np.sqrt(self.dataTrans[0,:,:]**2+self.dataTrans[1,:,:]**2),is2d)
+            #ch.set_label(self.varname + comps[-1])
                 
         plt.gca().set_ylim(ylim)
         if  not is2d:		
@@ -1811,7 +1680,6 @@ class Window(tk.Frame):
 		#self.zminfield.insert(8,str(ylim[0])),self.zmaxfield.insert(8,str(ylim[1]))
 		#self.zminfield.insert(8,str(ylim[0])),self.zmaxfield.insert(8,(ylim[1]))
         self.update_plots()
-		
     # navigate time steps    
     def firstts(self):
         self.stack.set(self.stacks[0])
@@ -1947,6 +1815,11 @@ class Window(tk.Frame):
             
             self.obsnc=xr.open_dataset(obsfile)
             self.obsnc=self.obsnc.sel(TIME=slice(self.dates[0],self.dates[-1]))
+            #plt.figure()
+            
+            #plt.grid()
+            
+            #phi2=self.ncs[self.varname][self.varname][:,nn,-1].plot()
             
             lonq=np.unique(self.obsnc['LONGITUDE'])[0]
             latq=np.unique(self.obsnc['LATITUDE'])[0]
@@ -1959,6 +1832,9 @@ class Window(tk.Frame):
             self.timeseries(coords=self.coords)
             
             ph2=self.obsnc['TEMP'].plot()
+            #phi=plt.plot(self.dates,self.ncs[self.varname][self.varname][:,nn,-1])
+            #plt.legend([ph2[0],phi[0]],[obsfile[obsfile.rindex('/'):],'schism' + self.varname])
+            #plt.legend([obsfile[obsfile.rindex('/'):],'schism' + self.varname])
             plt.legend(['schism ' + self.varname,obsfile[obsfile.rindex('/'):]])
             self.update_plots()				
 			
@@ -1969,7 +1845,7 @@ class Window(tk.Frame):
 
 # launch gui
 root = tk.Tk()
-root.geometry("420x460")
+root.geometry("400x440")
 root.grid_rowconfigure(12, minsize=100)  
 root.grid_columnconfigure(4, minsize=100)  
 if __name__ == "__main__":
