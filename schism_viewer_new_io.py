@@ -180,9 +180,12 @@ class Window(tk.Frame):
         self.ibttms=np.asarray([(bttm[self.faces[parent[i],:]]).max()-1 for i in range(len(parent)) ],int)
         return parent,np.stack((w1,w2,w3)).transpose() 
 
-    def schism_plotAtelems(self,nodevalues):
-        ph=plt.tripcolor(self.plotx,self.ploty,self.faces[:,:3],facecolors=self.nodevalues[self.faces[:,:3]].mean(axis=1),shading='flat')
-        ch=plt.colorbar(extend='both')
+    def schism_plotAtelems(self,nodevalues,add_cb=True):
+        ph=plt.tripcolor(self.plotx,self.ploty,self.faces[:,:3],facecolors=self.nodevalues[self.faces[:,:3]].mean(axis=1),shading='flat',alpha=None) #test alpha = None for transparancy
+        if add_cb:
+            ch=plt.colorbar(extend='both')
+        else:
+            ch=None
         plt.tight_layout()
         return ph,ch
 		
@@ -911,7 +914,11 @@ class Window(tk.Frame):
         else:
              #self.cmap0=plt.cm.jet
              plt.set_cmap(plt.cm.jet)
-        self.plotx,self.ploty=self.x,self.y		
+        self.plotx,self.ploty=self.x,self.y
+        # add plot of bbathymetry		
+        self.ph0,self.ch0=self.schism_plotAtelems(self.depths,add_cb=False)
+        self.ph0.set_cmap('gray')  #testing
+        self.ph0.set_clim((-4,4))		
         self.ph,self.ch=self.schism_plotAtelems(self.nodevalues)
         #self.cmap_callback()			 
         self.title=self.varname		
@@ -1157,7 +1164,8 @@ class Window(tk.Frame):
         if self.use_cmocean:
                #cmap='cmo.{:s}'.format(self.cmap.get())# # works
                cmap=eval('cmo.{:s}'.format(self.cmap.get()))
-               cmap.set_bad('gray')
+               cmap.set_bad('None') # None for transparent
+               #cmap.set_bad('gray') # None for transparent
                cmap.set_over('purple')
                cmap.set_under('black')
                cmap.name='cmo.{:s}'.format(self.cmap.get())
@@ -1165,7 +1173,8 @@ class Window(tk.Frame):
 
         else: #matplotlib
                cmap=plt.cm.get_cmap(self.cmap.get())
-               cmap.set_bad('gray')
+               cmap.set_bad('None')			   
+               #cmap.set_bad('gray')
                cmap.set_over('purple')
                cmap.set_under('black')
                self.ph.set_cmap(cmap)				   
@@ -1209,6 +1218,10 @@ class Window(tk.Frame):
             self.plotx,self.ploty=self.x,self.y		
         plt.figure(self.fig0)
         plt.clf()
+        self.ph0,self.ch0=self.schism_plotAtelems(self.depths,add_cb=False)
+        self.ph0.set_array(self.depths[self.faces[:,:3]].mean(axis=1))  # noetig ? workaround	
+        self.ph0.set_cmap('gray')  #testing ad bathymetry
+        self.ph0.set_clim((-4,4))		
         self.ph,self.ch=self.schism_plotAtelems(self.nodevalues)
         self.schism_updateAtelems()
 		
