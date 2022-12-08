@@ -233,6 +233,11 @@ class Window(tk.Frame):
             self.nodevalues=np.sqrt(u*u+v*v)
             u=np.ma.masked_array(u,mask=self.drynodes)
             v=np.ma.masked_array(v,mask=self.drynodes)
+
+            if self.CheckDiff.get()==1: #plot diffrence between absolute values					
+                uabs1=np.sqrt((self.nclist[self.active_setup][self.vardict[self.varname]][self.varname][:,self.total_time_index,:]**2).sum(axis=0))
+                uabs0=np.sqrt((self.nclist[0][self.vardict[self.varname]][self.varname][:,self.total_time_index,:]**2).sum(axis=0))
+
 			
             #self.nodevalues=np.ma.masked_array(self.nodevalues,mask=np.isnan(self.nodevalues))
             #u=np.ma.masked_array(u,mask=np.isnan(u))
@@ -241,15 +246,36 @@ class Window(tk.Frame):
             if self.CheckFixZ.get()==0:
                 #speed up for old io:
                 if self.oldio:
-                    hvel=self.ncs['schout']['hvel'][self.total_time_index,:,self.lvl,:].values
-                    u,v=hvel[:,0],hvel[:,1]
+                    hvel=self.ncs['schout']['hvel'][self.total_time_index,:,self.lvl,:]#.values
+                    tmp=hvel.values
+                    #u,v=hvel[:,0],hvel[:,1]
+                    u,v=tmp[:,0],tmp[:,1]
+                    if self.CheckDiff.get()==1: #plot diffrence between absolute values					
+                        uabs1=np.sqrt(self.nclist[self.active_setup]['schout']['hvel'][self.total_time_index,:,self.lvl,:].sum(axis=0))
+                        uabs0=np.sqrt(self.nclist[0]['schout']['hvel'][self.total_time_index,:,self.lvl,:].sum(axis=0))
+						
                 else: #new io
                     u=self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,self.lvl].values
                     v=self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,self.lvl].values
+                    if self.CheckDiff.get()==1: #plot diffrence between absolute values					
+                        uabs1=np.sqrt((self.nclist[self.active_setup][self.vardict[self.varname]][self.varname][:,self.total_time_index,:,self.lvl]**2).sum(axis=0))
+                        uabs0=np.sqrt((self.nclist[0][self.vardict[self.varname]][self.varname][:,self.total_time_index,:,self.lvl]**2).sum(axis=0))
+						
             else:
                 u=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,iabove]
                 v=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,iabove]
-            self.nodevalues=np.sqrt(u*u+v*v)
+                if self.CheckDiff.get()==1: #plot diffrence between absolute values					
+                    u0=weights[0,:]*self.nclist[0][self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.nclist[0][self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,iabove]
+                    v0=weights[0,:]*self.nclist[0][self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.nclist[0][self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,iabove]
+                    u1=weights[0,:]*self.nclist[self.active_setup][self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.nclist[self.active_setup][self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,iabove]
+                    v1=weights[0,:]*self.nclist[self.active_setup][self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.nclist[self.active_setup][self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,iabove]
+                    uabs1,uabs0=np.sqrt(u1**2+v1**2),np.sqrt(u0**2+v0**2)
+					
+				
+            if self.CheckDiff.get()==0: #plot diffrence between absolute values
+                self.nodevalues=np.sqrt(u*u+v*v)
+            else:	
+                self.nodevalues=(uabs1-uabs0).values
             u=np.ma.masked_array(u,mask=self.drynodes)
             v=np.ma.masked_array(v,mask=self.drynodes)
             #self.nodevalues=np.ma.masked_array(self.nodevalues,mask=np.isnan(self.nodevalues))
@@ -533,17 +559,18 @@ class Window(tk.Frame):
             self.w0.config(to=len(self.nclist)-1)
 			
         self.nts.append(len(ncs[self.filetag]['time']))
+        isetup=len(self.nts)-1
 		#
         if len(self.nclist)>1:
             ncdiff={}
             for key in  self.nclist[0].keys():
-                if type(self.nclist[1][key])==dict:
-                    ncdiff[key]=self.nclist[1][key][key]-self.nclist[0][key][key]					
+                if type(self.nclist[isetup][key])==dict:
+                    ncdiff[key]={key:self.nclist[isetup][key][key]-self.nclist[0][key][key]} #check					
                 else:
                     if ('zcoor' in key.lower()) or ('zcor' in key.lower()):
-                        ncdiff[key]=self.nclist[1][key]
+                        ncdiff[key]=self.nclist[isetup][key]
                     else:						
-                        ncdiff[key]=self.nclist[1][key]-self.nclist[0][key]
+                        ncdiff[key]=self.nclist[isetup][key]-self.nclist[0][key]
 			# reset dryelems
             ntmin=np.min((self.nts[0],self.nts[len(self.nclist)-1]))
             ncdiff[self.filetag][self.dryvarname]=np.maximum(self.nclist[1][self.filetag][self.dryvarname][:ntmin,:],self.nclist[0][self.filetag][self.dryvarname][:ntmin,:])				
