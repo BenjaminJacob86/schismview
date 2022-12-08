@@ -202,7 +202,7 @@ class Window(tk.Frame):
         else:
             lvl=self.lvl
         #from IPython import embed; embed()	            
-        if self.shape==(self.nt,self.nnodes,self.nz):
+        if (self.shape==(self.nt,self.nnodes,self.nz)) | (self.shape==(self.nts[0],self.nnodes,self.nz)):
             if self.CheckFixZ.get()==0:
                 self.nodevalues=self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,self.lvl].values
             else: # z interpolation
@@ -221,12 +221,12 @@ class Window(tk.Frame):
             title=self.varname
             self.quiver=0
 
-        elif self.shape==(self.nt,self.nnodes):
+        elif (self.shape==(self.nt,self.nnodes)) | (self.shape==(self.nts[0],self.nnodes)):
             self.nodevalues=self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:].values
             title=self.varname
             #u=self.ncs[self.hvelname][self.hvelname][0,self.total_time_index,:,self.lvl]
             #v=self.ncs[self.hvelname][self.hvelname][1,self.total_time_index,:,self.lvl]
-        elif self.shape==(2,self.nt,self.nnodes): # 2 vector
+        elif (self.shape==(2,self.nt,self.nnodes)) | (self.shape==(2,self.nts[0],self.nnodes)): # 2 vector
             u=self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:].values
             v=self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:].values
             title='abs' + self.varname
@@ -237,7 +237,7 @@ class Window(tk.Frame):
             #self.nodevalues=np.ma.masked_array(self.nodevalues,mask=np.isnan(self.nodevalues))
             #u=np.ma.masked_array(u,mask=np.isnan(u))
             #v=np.ma.masked_array(v,mask=np.isnan(v))
-        elif self.shape==(2,self.nt,self.nnodes,self.nz):
+        elif (self.shape==(2,self.nt,self.nnodes,self.nz)) | (self.shape==(2,self.nts[0],self.nnodes,self.nz)):
             if self.CheckFixZ.get()==0:
                 #speed up for old io:
                 if self.oldio:
@@ -1663,10 +1663,6 @@ class Window(tk.Frame):
                 mask_hvel=self.mask_hvel				
             data=self.ncs[self.vardict[self.varname]][self.varname][:,self.total_time_index,:].values
             data=np.ma.masked_array(data,mask=mask_hvel | np.tile(mask,(2,1,1)))
-			#u=data[0,:]
-			#v=data[1,:]
-			#data=np.sqrt((data**2).sum(axis=0))
-        #data=np.ma.masked_array(data,mask=self.mask3d)
         m_interp='nn' # 'dinv'	 #interpolation method
         if m_interp=='dinv':
             self.zi=np.ma.masked_array(np.zeros((len(self.parents),self.nz)),mask=False)#*np.nan
@@ -1677,30 +1673,10 @@ class Window(tk.Frame):
         else:
             d,qloc=self.xy_nn_tree.query(self.coords)
             isub=np.unique(qloc,return_index=True)[1] # only use unique values # changes orde
-            #self.dataTrans=data[qloc[isub],:]
-            #self.dataTrans=np.ma.masked_array(self.dataTrans,mask=self.mask3d[qloc[isub]])                           
             qloc=np.asarray([indi for indi in qloc if indi in qloc[isub]])
-			#self.zi=zcor[qloc[isub],:]
             self.zi=zcor[qloc,:]
 		
-        #nnan=np.sum(np.isnan(self.zi),axis=1)			
-        # get out nans
-        #for icoord in range(len(self.coords)):
-        #    #self.zi[icoord,:nnan[icoord]]=self.zi[icoord,nnan[icoord]]		
-        #   ind=np.where(self.zi[icoord,:]!=0)[0][0]#np.where(self.zi[icoord,:]>0)[0]
-        #    self.ibttms[icoord]=ind
-        #    #self.zi[icoord,self.ibttms[icoord]]
-         #   self.zi[icoord,:ind]=self.zi[icoord,ind]
-
-        #ylim=((self.zi.min(),5)) # nan
-        #np.isnan(ylim[0])
-        #print('warning nan in zcor') if np.isnan(ylim[0]) else 1		
         ylim=((np.nanmin(self.zi),5)) # nan
-        #fig2=plt.figure(self.fig1)  # keep last from coords ask
-		
-        #fig2=self.activefig
-        #plt.figure(fig2)
-        #fig2.clf()
         plt.figure(self.activefig)
         plt.clf()
         if self.ivs==1: # scalar # interpolation along sigma layers
