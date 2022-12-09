@@ -1390,18 +1390,18 @@ class Window(tk.Frame):
         else:
             self.t=np.asarray([self.reftime + dt.timedelta(seconds=ti) for ti in            self.ncs[self.filetag]['time'].values],np.datetime64)[i0:i1]
         
-        if self.shape==(self.nt,self.nnodes,self.nz): #3D
+        if self.shape[1:]==(self.nnodes,self.nz): #self.shape==(self.nt,self.nnodes,self.nz): #3D
             self.ncs[self.vardict[self.varname]][self.varname][:,self.nn,self.lvl]
             self.ts=self.ncs[self.vardict[self.varname]][self.varname][i0:i1,self.nn,self.lvl]
-        elif self.shape==(self.nt,self.nnodes):
+        elif self.shape[1:]==(self.nnodes,): #self.shape==(self.nt,self.nnodes):
             self.ts=self.ncs[self.vardict[self.varname]][self.varname][i0:i1,self.nn]
         #elif self.shape==(self.nt,self.nnodes,2)
-        elif self.shape==(2,self.nt,self.nnodes):
+        elif self.shape[2:]==(self.nnodes,)#self.shape==(2,self.nt,self.nnodes):
             if self.npt==1:
                 self.ts=self.ncs[self.vardict[self.varname]][self.varname][:,i0:i1,self.nn].values.reshape(2,i1-i0,1)
             else:
                 self.ts=self.ncs[self.vardict[self.varname]][self.varname][:,i0:i1,self.nn].values
-        elif self.shape==(2,self.nt,self.nnodes,self.nz):
+        elif self.shape[2:]==(self.nnodes,self.nz):#self.shape==(2,self.nt,self.nnodes,self.nz):
             if self.npt==1:
                 self.ts=self.ncs[self.vardict[self.varname]][self.varname][:,i0:i1,self.nn,self.lvl].values.reshape(2,i1-i0,1)
             else:
@@ -1455,14 +1455,14 @@ class Window(tk.Frame):
             self.ask_coordinates()
 			
         zs=self.ncs[self.zcorname][self.zcorname][self.total_time_index,self.nn,:].values                        
-        if self.shape==(self.nt,self.nnodes,self.nz):
+        if self.shape[1:]==(self.nnodes,self.nz):#self.shape==(self.nt,self.nnodes,self.nz):
             ps=self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,self.nn,:].values
 
             if self.npt>1:
                 ps=ps.swapaxes(0,1)
                 zs=zs.swapaxes(0,1)			
             
-        elif self.shape==(2,self.nt,self.nnodes,self.nz): #hvel
+        elif self.shape[2:]==(self.nnodes,self.nz):#self.shape==(2,self.nt,self.nnodes,self.nz): #hvel
             ps=self.ncs[self.vardict[self.varname]][self.varname][:,self.total_time_index,self.nn,:].values
             if self.npt>1:
                 ps=ps.swapaxes(1,2)
@@ -1525,11 +1525,11 @@ class Window(tk.Frame):
             self.t=self.ncs['schout']['time'].values
         else:
             self.t=np.asarray([self.reftime + dt.timedelta(seconds=ti) for ti in            self.ncs[self.filetag]['time'].values],np.datetime64)[i0:i1]
-        if self.shape[:3]==(self.nt,self.nnodes,self.nz):
+        if self.shape[1:3]==(self.nnodes,self.nz):#self.shape[:3]==(self.nt,self.nnodes,self.nz):
             self.ts=np.squeeze(self.ncs[self.vardict[self.varname]][self.varname][i0:i1,self.nn,:])
-        elif self.shape[1:]==(self.nt,self.nnodes,self.nz):#hvel
+        elif self.shape[2:]==(self.nnodes,self.nz):#self.shape[1:]==(self.nt,self.nnodes,self.nz):#hvel
             self.ts=np.squeeze(self.ncs[self.vardict[self.varname]][self.varname][:,i0:i1,self.nn,:])
-        elif self.shape==(self.nt,self.nnodes) or self.shape==(self.nt,self.nnodes,2):
+        elif self.shape[1:]==(self.nnodes,) or self.shape[1:]==(self.nnodes,2):#self.shape==(self.nt,self.nnodes) or self.shape==(self.nt,self.nnodes,2):
             print("variablae has no depths")
             return
 
@@ -1583,13 +1583,13 @@ class Window(tk.Frame):
         else:
             self.t=np.asarray([self.reftime + dt.timedelta(seconds=ti) for ti in            self.ncs[self.filetag]['time'].values],np.datetime64)[i0:i1]
 			
-        if self.shape[:3]==(self.nt,self.nnodes,self.nz):
+        if self.shape[1:3]==(self.nnodes,self.nz):#self.shape[:3]==(self.nt,self.nnodes,self.nz):
             self.ts=np.squeeze(self.ncs[self.vardict[self.varname]][self.varname][i0:i1,self.nn,self.lvl])
-        elif self.shape[1:]==(self.nt,self.nnodes,self.nz):#hvel
+        elif self.shape[2:]==(self.nnodes,self.nz):#self.shape[1:]==(self.nt,self.nnodes,self.nz):#hvel
             self.ts=np.squeeze(self.ncs[self.vardict[self.varname]][self.varname][:,i0:i1,self.nn,self.lvl])
-        elif self.shape==(self.nt,self.nnodes):
+        elif self.shape[1:]==(self.nnodes):#self.shape==(self.nt,self.nnodes):
             self.ts=np.squeeze(self.ncs[self.vardict[self.varname]][self.varname][i0:i1,self.nn])
-        elif self.shape==(self.nt,self.nnodes,2):
+        elif self.shape[1:]==(self.nnodes,2):#self.shape==(self.nt,self.nnodes,2):
             self.ts=np.squeeze(self.ncs[self.vardict[self.varname]][self.varname][i0:i1,self.nn,:])		
         else:
             print('variable has non suitable format')
