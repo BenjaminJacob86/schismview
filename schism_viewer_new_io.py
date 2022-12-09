@@ -237,7 +237,9 @@ class Window(tk.Frame):
             if self.CheckDiff.get()==1: #plot diffrence between absolute values					
                 uabs1=np.sqrt((self.nclist[self.active_setup][self.vardict[self.varname]][self.varname][:,self.total_time_index,:]**2).sum(axis=0))
                 uabs0=np.sqrt((self.nclist[0][self.vardict[self.varname]][self.varname][:,self.total_time_index,:]**2).sum(axis=0))
-
+                self.nodevalues=(uabs1-uabs0).values
+            else:	
+                self.nodevalues=np.sqrt(u*u+v*v)
 			
             #self.nodevalues=np.ma.masked_array(self.nodevalues,mask=np.isnan(self.nodevalues))
             #u=np.ma.masked_array(u,mask=np.isnan(u))
