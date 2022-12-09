@@ -1396,7 +1396,7 @@ class Window(tk.Frame):
         elif self.shape[1:]==(self.nnodes,): #self.shape==(self.nt,self.nnodes):
             self.ts=self.ncs[self.vardict[self.varname]][self.varname][i0:i1,self.nn]
         #elif self.shape==(self.nt,self.nnodes,2)
-        elif self.shape[2:]==(self.nnodes,)#self.shape==(2,self.nt,self.nnodes):
+        elif self.shape[2:]==(self.nnodes,):#self.shape==(2,self.nt,self.nnodes):
             if self.npt==1:
                 self.ts=self.ncs[self.vardict[self.varname]][self.varname][:,i0:i1,self.nn].values.reshape(2,i1-i0,1)
             else:
