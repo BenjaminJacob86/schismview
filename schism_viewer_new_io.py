@@ -230,7 +230,7 @@ class Window(tk.Frame):
             u=self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:].values
             v=self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:].values
             title='abs' + self.varname
-            self.nodevalues=np.sqrt(u*u+v*v)
+            #self.nodevalues=np.sqrt(u*u+v*v)
             u=np.ma.masked_array(u,mask=self.drynodes)
             v=np.ma.masked_array(v,mask=self.drynodes)
 
