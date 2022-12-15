@@ -180,18 +180,39 @@ class Window(tk.Frame):
         self.ibttms=np.asarray([(bttm[self.faces[parent[i],:]]).max()-1 for i in range(len(parent)) ],int)
         return parent,np.stack((w1,w2,w3)).transpose() 
 		
-	def vert_int(self,dep,avg=False): 
 		zcor=self.ncs[self.vardict[self.zcorname]][self.zcorname][self.total_time_index,:,:].values#self.ti_tk.get() #self.ncv['zcor']
-		zcor=np.ma.masked_array(zcor,mask=self.mask3d)
+    def vert_int(self,avg=False): 
+        zcor=self.ncs[self.vardict[self.zcorname]][self.zcorname][self.total_time_index,:,:].values#self.ti_tk.get() #self.ncv['zcor']
+        zcor=np.ma.masked_array(zcor,mask=self.mask3d)
 
-		data=self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,:].values
-		
-		dz=np.diff(zcor,axis=-1)
-		dmean=0.5*(data[:,:-1]+data[:,1:])
-		int=np.sum(dz*dmean,axis=-1)
-		if avg:
-			int=(dz.sum(axis=-1))				
-		self.nodevalues=int		
+		# scalar
+        dz=np.diff(zcor,axis=-1)
+        if not 'ivs' in self.ncs[self.vardict[self.varname]][self.varname].dims:
+            data=self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,:].values
+            dmean=0.5*(data[:,:-1]+data[:,1:])
+            int=np.sum(dz*dmean,axis=-1)
+			
+            if avg:
+                int/=(dz.sum(axis=-1))				
+            return int		
+
+        else:  #vector
+            data=self.ncs[self.vardict[self.varname]][self.varname][:,self.total_time_index,:,:].values
+            uabs=np.sqrt((data**2).sum(axis=0))
+            
+            dmean=0.5*(uabs[:,:-1]+uabs[:,1:])
+            umean=0.5*(data[0,:,:-1]+uabs[0,:,1:])
+            vmean=0.5*(data[:,:-1]+uabs[1,:,1:])
+            int=np.sum(dz*dmean,axis=-1)
+            intu=np.sum(dz*umean,axis=-1)
+            intv=np.sum(dz*vmean,axis=-1)
+			
+            if avg:
+                int/=(dz.sum(axis=-1))				
+                intu/=(dz.sum(axis=-1))				
+                intv/=(dz.sum(axis=-1))				
+            return int, intu, intv		
+			
 
     def schism_plotAtelems(self,nodevalues,add_cb=True):
         ph=plt.tripcolor(self.plotx,self.ploty,self.faces[:,:3],facecolors=self.nodevalues[self.faces[:,:3]].mean(axis=1),shading='flat',alpha=None) #test alpha = None for transparancy
@@ -218,17 +239,16 @@ class Window(tk.Frame):
         if (self.shape==(self.nt,self.nnodes,self.nz)) | (self.shape==(self.nts[0],self.nnodes,self.nz)):
             if self.CheckFixZ.get()==0:
                 self.nodevalues=self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,self.lvl].values
-			elif self.integrateZ.get()!=0: #z integrations	
-                vert_int(self,dep,avg=False)
-				lvl='z Int'
-			elif self.avgZ.get()!=0: #z integrations	
-                vert_int(self,dep,avg=True)
-				lvl='z avg'
+            elif self.integrateZ.get()!=0: #z integrations	
+                self.nodevalues=self.vert_int(self,avg=False)
+                lvl='z Int'
+            elif self.avgZ.get()!=0: #z average	
+                self.nodevalues=self.vert_int(self,avg=True)
+                lvl='z avg'
             else: # z interpolation
                 self.nodevalues=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,:].values[self.nodeinds,iabove]
 				# optimize indexing
                 self.nodevalues=np.ma.masked_array(self.nodevalues,mask=np.isnan(self.nodevalues))
-			self.vert_int			
 				
             title=self.varname
 			#use arrows of valocuty for other variables
@@ -283,8 +303,25 @@ class Window(tk.Frame):
                     if self.CheckDiff.get()==1: #plot diffrence between absolute values					
                         uabs1=np.sqrt((self.nclist[self.active_setup][self.vardict[self.varname]][self.varname][:,self.total_time_index,:,self.lvl]**2).sum(axis=0))
                         uabs0=np.sqrt((self.nclist[0][self.vardict[self.varname]][self.varname][:,self.total_time_index,:,self.lvl]**2).sum(axis=0))
+
+			# new io integrate			
+            elif (self.integrateZ.get()!=0) | (self.avgZ.get()!=0): #z integrations	
+                uabs,u,v=self.vert_int(self,avg=self.avgZ.get()!=0)
+                if self.integrateZ.get()!=0:
+                    lvl='z Int'
+                else:	
+                    lvl='z avg'						
+
+                if self.CheckDiff.get()==1: #plot diffrence between absolute 
+                    self.ncs=self.nclist[self.active_setup]
+                    uabs1,u1,v1=self.vert_int(self,avg=self.avgZ.get()!=0)
+                    self.ncs=self.nclist[0]
+                    uabs0,u0,v0=self.vert_int(self,avg=self.avgZ.get()!=0)
+                    self.ncs=self.diffnclist[self.active_setup-1]
+                    u=u1-u0
+                    v=v1-v0
 						
-            else:
+            else: # vertical interpol
                 u=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,iabove]
                 v=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,iabove]
                 if self.CheckDiff.get()==1: #plot diffrence between absolute values					
