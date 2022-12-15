@@ -180,7 +180,6 @@ class Window(tk.Frame):
         self.ibttms=np.asarray([(bttm[self.faces[parent[i],:]]).max()-1 for i in range(len(parent)) ],int)
         return parent,np.stack((w1,w2,w3)).transpose() 
 		
-		zcor=self.ncs[self.vardict[self.zcorname]][self.zcorname][self.total_time_index,:,:].values#self.ti_tk.get() #self.ncv['zcor']
     def vert_int(self,avg=False): 
         zcor=self.ncs[self.vardict[self.zcorname]][self.zcorname][self.total_time_index,:,:].values#self.ti_tk.get() #self.ncv['zcor']
         zcor=np.ma.masked_array(zcor,mask=self.mask3d)
