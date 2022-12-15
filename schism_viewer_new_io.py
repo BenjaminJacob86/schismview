@@ -357,7 +357,7 @@ class Window(tk.Frame):
                 self.nodevalues=eval(expr)    
                 
         if self.varname != 'depth':
-            title=self.titlegen(self.lvl)
+            title=self.titlegen(lvl)
         else:
             title=self.varname
         # setting colorbar
