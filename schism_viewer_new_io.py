@@ -241,10 +241,10 @@ class Window(tk.Frame):
 				# optimize indexing
                 self.nodevalues=np.ma.masked_array(self.nodevalues,mask=np.isnan(self.nodevalues))
             elif self.integrateZ.get()!=0: #z integrations
-                self.nodevalues=self.vert_int(self,avg=False)
+                self.nodevalues=self.vert_int(avg=False)
                 lvl='z Int'
             elif self.avgZ.get()!=0: #z average	
-                self.nodevalues=self.vert_int(self,avg=True)
+                self.nodevalues=self.vert_int(avg=True)
                 lvl='z avg'
             else: # regular surface slave
                 self.nodevalues=self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,self.lvl].values
@@ -295,7 +295,7 @@ class Window(tk.Frame):
 
 			# new io integrate			
             elif (self.integrateZ.get()!=0) | (self.avgZ.get()!=0): #z integrations	
-                uabs,u,v=self.vert_int(self,avg=self.avgZ.get()!=0)
+                uabs,u,v=self.vert_int(avg=self.avgZ.get()!=0)
                 if self.integrateZ.get()!=0:
                     lvl='z Int'
                 else:	
@@ -303,9 +303,9 @@ class Window(tk.Frame):
 
                 if self.CheckDiff.get()==1: #plot diffrence between absolute 
                     self.ncs=self.nclist[self.active_setup]
-                    uabs1,u1,v1=self.vert_int(self,avg=self.avgZ.get()!=0)
+                    uabs1,u1,v1=self.vert_int(avg=self.avgZ.get()!=0)
                     self.ncs=self.nclist[0]
-                    uabs0,u0,v0=self.vert_int(self,avg=self.avgZ.get()!=0)
+                    uabs0,u0,v0=self.vert_int(avg=self.avgZ.get()!=0)
                     self.ncs=self.diffnclist[self.active_setup-1]
                     u=u1-u0
                     v=v1-v0
