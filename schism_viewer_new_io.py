@@ -1475,7 +1475,7 @@ class Window(tk.Frame):
         fig2=plt.figure(self.activefig)#plt.figure(self.fig1)
         fig2.clf()
         if self.ivs==1:
-            plt.title(self.titlegen(lvl))
+            plt.title(self.titlegen(''))
             #plt.title(str(self.reftime + dt.timedelta(seconds=np.int(self.ncs[self.filetag]['time'][self.total_time_index].values))))
             plt.plot(ps,zs)
             plt.ylabel('depth / m')
