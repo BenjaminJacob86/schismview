@@ -333,7 +333,10 @@ class Window(tk.Frame):
             if self.CheckDiff.get()==0: #plot diffrence between absolute values
                 self.nodevalues=np.sqrt(u*u+v*v)
             else:	
-                self.nodevalues=(uabs1-uabs0).values
+                if type(uabs1)==xr.core.dataarray.DataArray:
+                    self.nodevalues=(uabs1-uabs0).values
+                else:	
+                    self.nodevalues=uabs1-uabs0
             u=np.ma.masked_array(u,mask=self.drynodes)
             v=np.ma.masked_array(v,mask=self.drynodes)
             #self.nodevalues=np.ma.masked_array(self.nodevalues,mask=np.isnan(self.nodevalues))
