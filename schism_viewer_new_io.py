@@ -179,6 +179,19 @@ class Window(tk.Frame):
         bttm=self.ncs[self.filetag][self.bindexname][0,:].values
         self.ibttms=np.asarray([(bttm[self.faces[parent[i],:]]).max()-1 for i in range(len(parent)) ],int)
         return parent,np.stack((w1,w2,w3)).transpose() 
+		
+	def vert_int(self,dep,avg=False): 
+		zcor=self.ncs[self.vardict[self.zcorname]][self.zcorname][self.total_time_index,:,:].values#self.ti_tk.get() #self.ncv['zcor']
+		zcor=np.ma.masked_array(zcor,mask=self.mask3d)
+
+		data=self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,:].values
+		
+		dz=np.diff(zcor,axis=-1)
+		dmean=0.5*(data[:,:-1]+data[:,1:])
+		int=np.sum(dz*dmean,axis=-1)
+		if avg:
+			int=(dz.sum(axis=-1))				
+		self.nodevalues=int		
 
     def schism_plotAtelems(self,nodevalues,add_cb=True):
         ph=plt.tripcolor(self.plotx,self.ploty,self.faces[:,:3],facecolors=self.nodevalues[self.faces[:,:3]].mean(axis=1),shading='flat',alpha=None) #test alpha = None for transparancy
@@ -205,10 +218,18 @@ class Window(tk.Frame):
         if (self.shape==(self.nt,self.nnodes,self.nz)) | (self.shape==(self.nts[0],self.nnodes,self.nz)):
             if self.CheckFixZ.get()==0:
                 self.nodevalues=self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,self.lvl].values
+			elif self.integrateZ.get()!=0: #z integrations	
+                vert_int(self,dep,avg=False)
+				lvl='z Int'
+			elif self.avgZ.get()!=0: #z integrations	
+                vert_int(self,dep,avg=True)
+				lvl='z avg'
             else: # z interpolation
                 self.nodevalues=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,:].values[self.nodeinds,iabove]
 				# optimize indexing
                 self.nodevalues=np.ma.masked_array(self.nodevalues,mask=np.isnan(self.nodevalues))
+			self.vert_int			
+				
             title=self.varname
 			#use arrows of valocuty for other variables
             #u=self.ncs[self.hvelname][self.hvelname][0,self.total_time_index,:,self.lvl]
@@ -796,6 +817,15 @@ class Window(tk.Frame):
         self.fixdepth=tk.Entry(self,width=8)
         self.fixdepth.grid(row=row,column=1)
 
+        self.integrateZ = tk.IntVar(value=0) # move before  plotAtElems definition to avoid error
+        intz=tk.Checkbutton(self,text='integrate in z:',variable=self.integrateZ)
+        intz.grid(sticky = tk.W,row=row,column=2)
+
+        self.avgZ = tk.IntVar(value=0) # move before  plotAtElems definition to avoid error
+        avgz=tk.Checkbutton(self,text='average in z:',variable=self.avgZ)
+        avgz.grid(sticky = tk.W,row=row,column=3)
+
+		
         row+=1 # eval results
         self.CheckEval = tk.IntVar(value=0)
         fixz=tk.Checkbutton(self,text='eval  :',variable=self.CheckEval)
