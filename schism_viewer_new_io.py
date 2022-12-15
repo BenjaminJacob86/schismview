@@ -226,9 +226,9 @@ class Window(tk.Frame):
 
         plt.figure(self.fig0)
         if self.quiver!=0:
-                self.quiver.remove()
-                self.arrowlabel.remove()   
-                self.quiver=0	
+            self.quiver.remove()
+            self.arrowlabel.remove()   
+            self.quiver=0	
         if self.CheckFixZ.get()!=0:                
             ibelow,iabove,weights=self.get_layer_weights(np.double(self.fixdepth.get()))
             lvl=str(self.fixdepth.get()+' m')
@@ -236,25 +236,22 @@ class Window(tk.Frame):
             lvl=self.lvl
         #from IPython import embed; embed()	            
         if (self.shape==(self.nt,self.nnodes,self.nz)) | (self.shape==(self.nts[0],self.nnodes,self.nz)):
-            if self.CheckFixZ.get()==0:
-                self.nodevalues=self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,self.lvl].values
-            elif self.integrateZ.get()!=0: #z integrations	
+            if self.CheckFixZ.get()==1:  # z interpolation
+                self.nodevalues=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,:].values[self.nodeinds,iabove]
+				# optimize indexing
+                self.nodevalues=np.ma.masked_array(self.nodevalues,mask=np.isnan(self.nodevalues))
+            elif self.integrateZ.get()!=0: #z integrations
                 self.nodevalues=self.vert_int(self,avg=False)
                 lvl='z Int'
             elif self.avgZ.get()!=0: #z average	
                 self.nodevalues=self.vert_int(self,avg=True)
                 lvl='z avg'
-            else: # z interpolation
-                self.nodevalues=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,:].values[self.nodeinds,iabove]
-				# optimize indexing
-                self.nodevalues=np.ma.masked_array(self.nodevalues,mask=np.isnan(self.nodevalues))
+            else: # regular surface slave
+                self.nodevalues=self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,self.lvl].values
+
+
 				
             title=self.varname
-			#use arrows of valocuty for other variables
-            #u=self.ncs[self.hvelname][self.hvelname][0,self.total_time_index,:,self.lvl]
-            #v=self.ncs[self.hvelname][self.hvelname][1,self.total_time_index,:,self.lvl]
-            #u=np.ma.masked_array(u,mask=np.isnan(u))
-            #v=np.ma.masked_array(v,mask=np.isnan(v))
 
         elif self.shape==(self.nnodes,):
             self.nodevalues=self.ncs[self.vardict[self.varname]][self.varname][:].values
@@ -285,23 +282,16 @@ class Window(tk.Frame):
             #u=np.ma.masked_array(u,mask=np.isnan(u))
             #v=np.ma.masked_array(v,mask=np.isnan(v))
         elif (self.shape==(2,self.nt,self.nnodes,self.nz)) | (self.shape==(2,self.nts[0],self.nnodes,self.nz)):
-            if self.CheckFixZ.get()==0:
-                #speed up for old io:
-                if self.oldio:
-                    hvel=self.ncs['schout']['hvel'][self.total_time_index,:,self.lvl,:]#.values
-                    tmp=hvel.values
-                    #u,v=hvel[:,0],hvel[:,1]
-                    u,v=tmp[:,0],tmp[:,1]
-                    if self.CheckDiff.get()==1: #plot diffrence between absolute values					
-                        uabs1=np.sqrt(self.nclist[self.active_setup]['schout']['hvel'][self.total_time_index,:,self.lvl,:].sum(axis=0))
-                        uabs0=np.sqrt(self.nclist[0]['schout']['hvel'][self.total_time_index,:,self.lvl,:].sum(axis=0))
-						
-                else: #new io
-                    u=self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,self.lvl].values
-                    v=self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,self.lvl].values
-                    if self.CheckDiff.get()==1: #plot diffrence between absolute values					
-                        uabs1=np.sqrt((self.nclist[self.active_setup][self.vardict[self.varname]][self.varname][:,self.total_time_index,:,self.lvl]**2).sum(axis=0))
-                        uabs0=np.sqrt((self.nclist[0][self.vardict[self.varname]][self.varname][:,self.total_time_index,:,self.lvl]**2).sum(axis=0))
+            if self.CheckFixZ.get()==1: #vertical interpol (new code)
+			
+               u=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,iabove]
+                v=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,iabove]
+                if self.CheckDiff.get()==1: #plot diffrence between absolute values					
+                    u0=weights[0,:]*self.nclist[0][self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.nclist[0][self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,iabove]
+                    v0=weights[0,:]*self.nclist[0][self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.nclist[0][self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,iabove]
+                    u1=weights[0,:]*self.nclist[self.active_setup][self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.nclist[self.active_setup][self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,iabove]
+                    v1=weights[0,:]*self.nclist[self.active_setup][self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.nclist[self.active_setup][self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,iabove]
+                    uabs1,uabs0=np.sqrt(u1**2+v1**2),np.sqrt(u0**2+v0**2)			
 
 			# new io integrate			
             elif (self.integrateZ.get()!=0) | (self.avgZ.get()!=0): #z integrations	
@@ -320,15 +310,24 @@ class Window(tk.Frame):
                     u=u1-u0
                     v=v1-v0
 						
-            else: # vertical interpol
-                u=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,iabove]
-                v=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,iabove]
-                if self.CheckDiff.get()==1: #plot diffrence between absolute values					
-                    u0=weights[0,:]*self.nclist[0][self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.nclist[0][self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,iabove]
-                    v0=weights[0,:]*self.nclist[0][self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.nclist[0][self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,iabove]
-                    u1=weights[0,:]*self.nclist[self.active_setup][self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.nclist[self.active_setup][self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,iabove]
-                    v1=weights[0,:]*self.nclist[self.active_setup][self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.nclist[self.active_setup][self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,iabove]
-                    uabs1,uabs0=np.sqrt(u1**2+v1**2),np.sqrt(u0**2+v0**2)
+            else: # regular surface slab
+ 
+                #speed up for old io:
+                if self.oldio:
+                    hvel=self.ncs['schout']['hvel'][self.total_time_index,:,self.lvl,:]#.values
+                    tmp=hvel.values
+                    #u,v=hvel[:,0],hvel[:,1]
+                    u,v=tmp[:,0],tmp[:,1]
+                    if self.CheckDiff.get()==1: #plot diffrence between absolute values					
+                        uabs1=np.sqrt(self.nclist[self.active_setup]['schout']['hvel'][self.total_time_index,:,self.lvl,:].sum(axis=0))
+                        uabs0=np.sqrt(self.nclist[0]['schout']['hvel'][self.total_time_index,:,self.lvl,:].sum(axis=0))
+						
+                else: #new io
+                    u=self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,self.lvl].values
+                    v=self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,self.lvl].values
+                    if self.CheckDiff.get()==1: #plot diffrence between absolute values					
+                        uabs1=np.sqrt((self.nclist[self.active_setup][self.vardict[self.varname]][self.varname][:,self.total_time_index,:,self.lvl]**2).sum(axis=0))
+                        uabs0=np.sqrt((self.nclist[0][self.vardict[self.varname]][self.varname][:,self.total_time_index,:,self.lvl]**2).sum(axis=0))					
 					
 				
             if self.CheckDiff.get()==0: #plot diffrence between absolute values
@@ -854,11 +853,11 @@ class Window(tk.Frame):
         self.fixdepth.grid(row=row,column=1)
 
         self.integrateZ = tk.IntVar(value=0) # move before  plotAtElems definition to avoid error
-        intz=tk.Checkbutton(self,text='integrate in z:',variable=self.integrateZ)
+        intz=tk.Checkbutton(self,text='z int',variable=self.integrateZ)
         intz.grid(sticky = tk.W,row=row,column=2)
 
         self.avgZ = tk.IntVar(value=0) # move before  plotAtElems definition to avoid error
-        avgz=tk.Checkbutton(self,text='average in z:',variable=self.avgZ)
+        avgz=tk.Checkbutton(self,text='z avg',variable=self.avgZ)
         avgz.grid(sticky = tk.W,row=row,column=3)
 
 		
