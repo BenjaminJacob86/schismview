@@ -200,8 +200,8 @@ class Window(tk.Frame):
             uabs=np.sqrt((data**2).sum(axis=0))
             
             dmean=0.5*(uabs[:,:-1]+uabs[:,1:])
-            umean=0.5*(data[0,:,:-1]+uabs[0,:,1:])
-            vmean=0.5*(data[:,:-1]+uabs[1,:,1:])
+            umean=0.5*(data[0,:,:-1]+data[0,:,1:])
+            vmean=0.5*(data[1,:,:-1]+data[1,:,1:])
             int=np.sum(dz*dmean,axis=-1)
             intu=np.sum(dz*umean,axis=-1)
             intv=np.sum(dz*vmean,axis=-1)
