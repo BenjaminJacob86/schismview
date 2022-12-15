@@ -284,7 +284,7 @@ class Window(tk.Frame):
         elif (self.shape==(2,self.nt,self.nnodes,self.nz)) | (self.shape==(2,self.nts[0],self.nnodes,self.nz)):
             if self.CheckFixZ.get()==1: #vertical interpol (new code)
 			
-               u=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,iabove]
+                u=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,iabove]
                 v=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,iabove]
                 if self.CheckDiff.get()==1: #plot diffrence between absolute values					
                     u0=weights[0,:]*self.nclist[0][self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.nclist[0][self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,iabove]
