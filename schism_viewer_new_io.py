@@ -3,6 +3,7 @@
 GUI Tool for SCHISM netcdf out (schout_nc) visualization.!
 Created on Tue Jan 29 14:52:24 2019
 @author: JacobB
+
 """
 __author__  = "Benjamin Jacob"
 __license__ = "GNU GPL v2.0"
