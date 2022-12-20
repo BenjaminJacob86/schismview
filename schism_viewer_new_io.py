@@ -460,7 +460,7 @@ class Window(tk.Frame):
         if self.oldio:
                 return prefix+self.varname+' @ ' + str(self.ncs[self.filetag]['time'][self.total_time_index].values)[:16] + ' level= ' + str(lvl)
         else: # new io
-                return prefix+self.varname+' @ ' + str(self.reftime + dt.timedelta(seconds=np.int(self.ncs[self.filetag]['time'][self.total_time_index]))) + ' level= ' + str(lvl)		
+                return prefix+self.varname+' @ ' + str(self.reftime + dt.timedelta(seconds=int(self.ncs[self.filetag]['time'][self.total_time_index]))) + ' level= ' + str(lvl)		
 
 				
     def load_setup_data(self,ncdirsel=None):
@@ -468,7 +468,7 @@ class Window(tk.Frame):
         if ncdirsel==None:
             print("navigate into schsim run directory (containing param.nml)")
             self.runDir=filedialog.askdirectory(title='enter run directory direcory')+'/'
-            nnodes=np.int(np.loadtxt(self.runDir+'hgrid.ll',skiprows=1,max_rows=1)[1])
+            nnodes=int(np.loadtxt(self.runDir+'hgrid.ll',skiprows=1,max_rows=1)[1])
             m=np.loadtxt(self.runDir+'hgrid.ll',skiprows=2,max_rows=nnodes)
             self.lon,self.lat=m[:,1],m[:,2]
             self.ll_nn_tree = cKDTree([[self.lon[i],self.lat[i]] for i in range(len(self.lon))])
@@ -494,7 +494,7 @@ class Window(tk.Frame):
             self.stack_nrs=list(np.asarray(self.stack_nrs)[np.argsort(self.stack_nrs)])
             self.nstacks=len(self.files)
             print('found ' +str(self.nstacks) +' stack(s)')
-            self.stack0=np.int(self.stack_nrs[0])
+            self.stack0=int(self.stack_nrs[0])
             
             # initialize extracion along files # check ofr future if better performance wih xarray
             ncs={'schout':[]}
@@ -570,7 +570,7 @@ class Window(tk.Frame):
             self.files=list(np.asarray(self.files)[np.argsort(self.stack_nrs)])
             self.stack_nrs=list(np.asarray(self.stack_nrs)[np.argsort(self.stack_nrs)])
             self.nstacks=len(self.files)
-            self.stack0=np.int(self.stack_nrs[0])
+            self.stack0=int(self.stack_nrs[0])
             print('found ' +str(self.nstacks) +' stack(s)')
     
             # file access        
@@ -612,10 +612,10 @@ class Window(tk.Frame):
                 ncs[vari_vec] ={vari_vec: xr.concat([ncs[self.vardict[varX]][varX], ncs[self.vardict[varY]][varY]], dim='ivs')}
 
             p=param(self.runDir+'/param.nml')
-            self.reftime=dt.datetime(np.int(p.get_parameter('start_year')),
-            np.int(p.get_parameter('start_month')),
-            np.int(p.get_parameter('start_day')),
-            np.int(p.get_parameter('start_hour')),0,0)		
+            self.reftime=dt.datetime(int(p.get_parameter('start_year')),
+            int(p.get_parameter('start_month')),
+            int(p.get_parameter('start_day')),
+            int(p.get_parameter('start_hour')),0,0)		
 
             self.nclist.append(ncs) # add ncs to list
             self.w0.config(to=len(self.nclist)-1)
@@ -1545,7 +1545,7 @@ class Window(tk.Frame):
         fig2.clf()
         if self.ivs==1:
             plt.title(self.titlegen(''))
-            #plt.title(str(self.reftime + dt.timedelta(seconds=np.int(self.ncs[self.filetag]['time'][self.total_time_index].values))))
+            #plt.title(str(self.reftime + dt.timedelta(seconds=int(self.ncs[self.filetag]['time'][self.total_time_index].values))))
             plt.plot(ps,zs)
             plt.ylabel('depth / m')
             plt.xlabel(self.varname)
@@ -1559,7 +1559,7 @@ class Window(tk.Frame):
                 plt.grid()
                 plt.xlabel(self.varname + comps[iplt-1])
                 if iplt==1:
-                    plt.title(str(self.reftime + dt.timedelta(seconds=np.int(self.ncs[self.filetag]['time'][self.total_time_index].values))))
+                    plt.title(str(self.reftime + dt.timedelta(seconds=int(self.ncs[self.filetag]['time'][self.total_time_index].values))))
                     plt.legend(['P'+str(i+self.pt0) for i in range(self.npt)])
                     plt.ylabel('depth / m')
                 else:
@@ -1882,7 +1882,7 @@ class Window(tk.Frame):
                 plt.clim(self.clim) 
                 plt.xlim((self.xs.min(),self.xs.max()))	
                 if iplt==1:
-                    plt.title(str(self.reftime + dt.timedelta(seconds=np.int(self.ncs[self.filetag]['time'][self.total_time_index]))))
+                    plt.title(str(self.reftime + dt.timedelta(seconds=int(self.ncs[self.filetag]['time'][self.total_time_index]))))
                 
         plt.gca().set_ylim(ylim)
         if  not is2d:		
