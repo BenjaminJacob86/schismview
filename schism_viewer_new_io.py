@@ -1648,7 +1648,7 @@ class Window(tk.Frame):
 
 		#self.zcor=np.squeeze(self.ncs[self.vardict[self.zcorname]][self.zcorname][i0:i1,self.nn,:])
         if self.oldio:
-            self.t=self.ncs['schout']['time'].values
+            self.t=self.ncs['schout']['time'].values[i0:i1]
         else:
             self.t=np.asarray([self.reftime + dt.timedelta(seconds=ti) for ti in            self.ncs[self.filetag]['time'].values],np.datetime64)[i0:i1]
 			
