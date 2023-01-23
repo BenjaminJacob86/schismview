@@ -531,7 +531,11 @@ class Window(tk.Frame):
             self.bindexname='node_bottom_index'
             self.zcorname='zcor'			
             self.dryvarname='wetdry_elem'
-            self.drynodename='wetdry_node'
+            if 'wetdry_node' not in self.ncv.keys():
+                print('no wet dry node in keys')
+                self.drynodename=False
+            else:	
+                self.drynodename='wetdry_node'
             self.hvelname='hvel'
             self.vertvelname='vertical_velocity'			
 			# work around to map old velocity as new velocity formatted
@@ -736,7 +740,10 @@ class Window(tk.Frame):
              self.origins=np.arange(self.faces.shape[0])
         ##########################################  
         self.dryelems=self.ncs[self.filetag][self.dryvarname][0,:][self.origins]
-        self.drynodes=np.asarray(self.ncs[self.filetag][self.drynodename][0,:],bool)		
+        if (self.drynodename == False) and (self.oldio==True):
+            self.drynodes=self.ncs[self.vardict['hvel']]['hvel'][0,0:,-1].values==0
+        else:
+            self.drynodes=np.asarray(self.ncs[self.filetag][self.drynodename][0,:],bool)		
 
         # next neighbour element look up tree
         self.cx,self.cy=np.mean(self.x[self.faces],axis=1),np.mean(self.y[self.faces],axis=1)
@@ -1181,7 +1188,10 @@ class Window(tk.Frame):
         self.total_time_index=self.ti+self.stack_size*(self.current_stack-self.stack0) 
 		
         self.dryelems=self.ncs[self.filetag][self.dryvarname][self.total_time_index,:][self.origins]
-        self.drynodes=np.asarray(self.ncs[self.filetag][self.drynodename][self.total_time_index,:],bool)	
+        if (self.drynodename == False) and (self.oldio==True):
+            self.drynodes=self.ncs[self.vardict['hvel']]['hvel'][0,self.total_time_index,:,-1].values==0
+        else:
+            self.drynodes=np.asarray(self.ncs[self.filetag][self.drynodename][self.total_time_index,:],bool)	
         self.schism_updateAtelems()
 
         for fignr in self.plot_windows.keys():
