@@ -12,6 +12,18 @@ __email__ = "benjamin.jacob@hereon.de"
 # speed up vecotr plotting
 # use subaxes in figure
 
+# polygon creation code
+#fig2, ax2 = plt.subplots()
+#fig2.show()
+#selector2 = PolygonSelector(ax2, lambda *args: None)
+#print("Click on the figure to create a polygon.")
+#print("Press the 'esc' key to start a new polygon.")
+#print("Try holding the 'shift' key to move all of the vertices.")
+#print("Try holding the 'ctrl' key to move a single vertex.")
+
+
+# salloc --x11 -p interactive -A gg0028 -n 10 -t 480
+
 import sys
 import glob
 import dask
@@ -235,10 +247,34 @@ class Window(tk.Frame):
             lvl=str(self.fixdepth.get()+' m')
         else:
             lvl=self.lvl
-        #from IPython import embed; embed()	            
+        #from IPython import embed; embed()	          
+
+		# timestep selection or average for on layer plots
+        if self.shape[0]==self.nt:
+            i0,i1=self.read_time_selection()
+            self.ncvar=self.ncs[self.vardict[self.varname]][self.varname] #
+            if self.CheckTavg.get():
+                self.ncvar=self.ncvar[i0:i1+1,:].mean(dim='time')
+            else:
+                self.ncvar=self.ncvar[self.total_time_index,:]
+        elif self.shape[1]==self.nt: #vector
+            i0,i1=self.read_time_selection()		                        
+            self.ncvar=self.ncs[self.vardict[self.varname]][self.varname] #
+            if self.CheckTavg.get():
+                self.ncvar=self.ncvar[:,i0:i1+1,:,:].mean(dim='time')
+            else:
+                self.ncvar=self.ncvar[:,self.total_time_index,:]
+
+        elem_data=False # loaded data already at elements
         if (self.shape==(self.nt,self.nnodes,self.nz)) | (self.shape==(self.nts[0],self.nnodes,self.nz)):
+            #self.ncvar=self.ncs[self.vardict[self.varname]][self.varname] # current variable
+			#time average # weights for vert in will be wrong 
+				
+			# regular
             if self.CheckFixZ.get()==1:  # z interpolation
-                self.nodevalues=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,:].values[self.nodeinds,iabove]
+                #self.nodevalues=weights[0,:]*self.ncvar[self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncvar[self.total_time_index,:,:].values[self.nodeinds,iabove]
+                self.nodevalues=weights[0,:]*self.ncvar[:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncvar[:,:].values[self.nodeinds,iabove]
+				
 				# optimize indexing
                 self.nodevalues=np.ma.masked_array(self.nodevalues,mask=np.isnan(self.nodevalues))
             elif self.integrateZ.get()!=0: #z integrations
@@ -247,46 +283,57 @@ class Window(tk.Frame):
             elif self.avgZ.get()!=0: #z average	
                 self.nodevalues=self.vert_int(avg=True)
                 lvl='z avg'
-            else: # regular surface slave
-                self.nodevalues=self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,self.lvl].values
-
+            else: # regular surface slab
+                #self.nodevalues=self.ncvar[self.total_time_index,:,self.lvl].values
+                self.nodevalues=self.ncvar[:,self.lvl].values
 
 				
             title=self.varname
 
         elif self.shape==(self.nnodes,):
-            self.nodevalues=self.ncs[self.vardict[self.varname]][self.varname][:].values
+            self.nodevalues=self.ncvar[:].values
             title=self.varname
             self.quiver=0
-
+		# add at element variables variables
         elif (self.shape==(self.nt,self.nnodes)) | (self.shape==(self.nts[0],self.nnodes)):
-            self.nodevalues=self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:].values
+            self.nodevalues=self.ncvar.values
             title=self.varname
-            #u=self.ncs[self.hvelname][self.hvelname][0,self.total_time_index,:,self.lvl]
-            #v=self.ncs[self.hvelname][self.hvelname][1,self.total_time_index,:,self.lvl]
+        elif (self.shape==(self.nt,self.nelems)) | (self.shape==(self.nts[0],self.nnodes)):
+            self.nodevalues=self.ncvar.values
+            title=self.varname
+            elem_data=True # loaded data already at elements
         elif (self.shape==(2,self.nt,self.nnodes)) | (self.shape==(2,self.nts[0],self.nnodes)): # 2 vector
-            u=self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:].values
-            v=self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:].values
+            #u=self.ncvar[0,self.total_time_index,:].values
+            #v=self.ncvar[1,self.total_time_index,:].values
+            u=self.ncvar[0,:].values
+            v=self.ncvar[1,:].values
+
             title='abs' + self.varname
             #self.nodevalues=np.sqrt(u*u+v*v)
             u=np.ma.masked_array(u,mask=self.drynodes)
             v=np.ma.masked_array(v,mask=self.drynodes)
 
+			# need to differntiate for Tavg
             if self.CheckDiff.get()==1: #plot diffrence between absolute values					
                 uabs1=np.sqrt((self.nclist[self.active_setup][self.vardict[self.varname]][self.varname][:,self.total_time_index,:]**2).sum(axis=0))
                 uabs0=np.sqrt((self.nclist[0][self.vardict[self.varname]][self.varname][:,self.total_time_index,:]**2).sum(axis=0))
                 self.nodevalues=(uabs1-uabs0).values
-            else:	
-                self.nodevalues=np.sqrt(u*u+v*v)
-			
-            #self.nodevalues=np.ma.masked_array(self.nodevalues,mask=np.isnan(self.nodevalues))
+            else:
+                if self.CheckTavg.get():			
+                    self.nodevalues=np.sqrt((self.ncs[self.vardict[self.varname]][self.varname]**2).sum(axis=0)).values
+                else:				
+                    self.nodevalues=np.sqrt(u*u+v*v)
+
             #u=np.ma.masked_array(u,mask=np.isnan(u))
             #v=np.ma.masked_array(v,mask=np.isnan(v))
         elif (self.shape==(2,self.nt,self.nnodes,self.nz)) | (self.shape==(2,self.nts[0],self.nnodes,self.nz)):
             if self.CheckFixZ.get()==1: #vertical interpol (new code)
 			
-                u=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,iabove]
-                v=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,iabove]
+                #u=weights[0,:]*self.ncvar[0,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncvar[0,self.total_time_index,:,:].values[self.nodeinds,iabove]
+                #v=weights[0,:]*self.ncvar[1,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncvar[1,self.total_time_index,:,:].values[self.nodeinds,iabove]
+                u=weights[0,:]*self.ncvar[0,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncvar[0,:,:].values[self.nodeinds,iabove]
+                v=weights[0,:]*self.ncvar[1,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncvar[1,:,:].values[self.nodeinds,iabove]
+				
                 if self.CheckDiff.get()==1: #plot diffrence between absolute values					
                     u0=weights[0,:]*self.nclist[0][self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.nclist[0][self.vardict[self.varname]][self.varname][0,self.total_time_index,:,:].values[self.nodeinds,iabove]
                     v0=weights[0,:]*self.nclist[0][self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.nclist[0][self.vardict[self.varname]][self.varname][1,self.total_time_index,:,:].values[self.nodeinds,iabove]
@@ -324,15 +371,24 @@ class Window(tk.Frame):
                         uabs0=np.sqrt(self.nclist[0]['schout']['hvel'][self.total_time_index,:,self.lvl,:].sum(axis=0))
 						
                 else: #new io
-                    u=self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,self.lvl].values
-                    v=self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,self.lvl].values
+                    #u=self.ncvar[0,self.total_time_index,:,self.lvl].values
+                    #v=self.ncvar[1,self.total_time_index,:,self.lvl].values
+					# I preselected time for avraging possability
+                    u=self.ncvar[0,:,self.lvl].values
+                    v=self.ncvar[1,:,self.lvl].values
                     if self.CheckDiff.get()==1: #plot diffrence between absolute values					
                         uabs1=np.sqrt((self.nclist[self.active_setup][self.vardict[self.varname]][self.varname][:,self.total_time_index,:,self.lvl]**2).sum(axis=0))
                         uabs0=np.sqrt((self.nclist[0][self.vardict[self.varname]][self.varname][:,self.total_time_index,:,self.lvl]**2).sum(axis=0))					
 					
 				
             if self.CheckDiff.get()==0: #plot diffrence between absolute values
-                self.nodevalues=np.sqrt(u*u+v*v)
+			
+                if self.CheckTavg.get():			
+                    print('using temporal avegarge of nodes {:s}-{:s} - not suitable if large variations in z'.format(self.exfrom.get(),self.exto.get()))                				
+                    self.nodevalues=np.sqrt((self.ncs[self.vardict[self.varname]][self.varname][:,:,:,self.lvl]**2).sum(axis=0)).mean(axis=0).values
+                else:				
+                    self.nodevalues=np.sqrt(u*u+v*v)
+                #self.nodevalues=np.sqrt(u*u+v*v)
             else:	
                 if type(uabs1)==xr.core.dataarray.DataArray:
                     self.nodevalues=(uabs1-uabs0).values
@@ -347,9 +403,9 @@ class Window(tk.Frame):
         else:
             print('variable shape missmatch - happened e.g. for unfinished runs with different outputwriting in variable files - assuming 3d file ')		
             if self.CheckFixZ.get()==0:
-                self.nodevalues=self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,self.lvl].values
+                self.nodevalues=self.ncvar[self.total_time_index,:,self.lvl].values
             else: # z interpolation
-                self.nodevalues=weights[0,:]*self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,:,:].values[self.nodeinds,iabove]
+                self.nodevalues=weights[0,:]*self.ncvar[self.total_time_index,:,:].values[self.nodeinds,ibelow]+weights[1,:]*self.ncvar[self.total_time_index,:,:].values[self.nodeinds,iabove]
 				# optimize indexing
                 self.nodevalues=np.ma.masked_array(self.nodevalues,mask=np.isnan(self.nodevalues))
             title=self.varname
@@ -365,7 +421,11 @@ class Window(tk.Frame):
         else:
             title=self.varname
         # setting colorbar
-        elemvalues=np.ma.masked_array(self.nodevalues[self.faces[:,:3]].mean(axis=1),mask=(self.dryelems==1)*self.maskdry.get())
+        if elem_data:
+            elemvalues=np.ma.masked_array(self.nodevalues[self.origins],mask=(self.dryelems==1)*self.maskdry.get())
+        else:
+            elemvalues=np.ma.masked_array(self.nodevalues[self.faces[:,:3]].mean(axis=1),mask=(self.dryelems==1)*self.maskdry.get())
+		
         self.ph.set_array(elemvalues)
         if not self.CheckVar.get():
             cmin,cmax=np.nanmin(elemvalues),np.nanmax(elemvalues)			            
@@ -400,8 +460,14 @@ class Window(tk.Frame):
                     hvel=self.ncs['schout']['hvel'][self.total_time_index,:,self.lvl,:].values
                     u,v=hvel[:,0],hvel[:,1]
                 else: #new io
-                    u=self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,self.lvl].values
-                    v=self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,self.lvl].values					
+                    #u=self.ncs[self.vardict[self.varname]][self.varname][0,self.total_time_index,:,self.lvl].values
+                    #v=self.ncs[self.vardict[self.varname]][self.varname][1,self.total_time_index,:,self.lvl].values		
+                    varname='horizontalVel'
+                    u=self.ncs[self.vardict[varname]][varname][0,self.total_time_index,:,self.lvl].values
+                    v=self.ncs[self.vardict[varname]][varname][1,self.total_time_index,:,self.lvl].values		
+					
+
+					
             u=np.ma.masked_array(u,mask=np.isnan(u))
             v=np.ma.masked_array(v,mask=np.isnan(v))			
             if self.normVar.get()==1:
@@ -457,12 +523,17 @@ class Window(tk.Frame):
 			        
     def titlegen(self,lvl):
         prefix=['',' $\Delta$ '][ self.CheckDiff.get()]	
+        i0,i1=self.read_time_selection()
+        prefix+=['',' <' + str(self.dates[i0])[:12]+' - '+str(self.dates[i1])[:12]+'>\n'][ self.CheckTavg.get()]	
+		
         if self.oldio:
                 return prefix+self.varname+' @ ' + str(self.ncs[self.filetag]['time'][self.total_time_index].values)[:16] + ' level= ' + str(lvl)
-        else: # new io
+        elif self.newio<2: # new io
                 return prefix+self.varname+' @ ' + str(self.reftime + dt.timedelta(seconds=int(self.ncs[self.filetag]['time'][self.total_time_index]))) + ' level= ' + str(lvl)		
+        else:
+                return prefix+self.varname+' @ ' + str(self.ncs[self.filetag]['time'][self.total_time_index].values)[:19] + ' level= ' + str(lvl)		
 
-				
+		
     def load_setup_data(self,ncdirsel=None):
         # load files    
         if ncdirsel==None:
@@ -481,9 +552,12 @@ class Window(tk.Frame):
         if len(glob.glob(self.combinedDir+'out2d_*.nc'))>0:
             print('found per variable netcdf output format')
             self.oldio=False
+            self.newio=1
         elif len(self.combinedDir+'schout_*.nc')>0:
             print('found schout.nc output format')
             self.oldio=True
+            self.newio=0
+
 		
         self.files=[] 		
         if self.oldio:
@@ -542,6 +616,7 @@ class Window(tk.Frame):
 
             strdte=[np.float(digit) for digit in ncs[self.filetag]['time'].attrs['base_date'].split()]
             self.reftime=dt.datetime.strptime('{:04.0f}-{:02.0f}-{:02.0f} {:02.0f}:{:02.0f}:{:02.0f}'.format(strdte[0],strdte[1],strdte[2],strdte[3],strdte[3],0),'%Y-%m-%d %H:%M:%S')
+				
             self.nclist.append(ncs)
             self.w0.config(to=len(self.nclist)-1)
 			
@@ -616,10 +691,11 @@ class Window(tk.Frame):
                 ncs[vari_vec] ={vari_vec: xr.concat([ncs[self.vardict[varX]][varX], ncs[self.vardict[varY]][varY]], dim='ivs')}
 
             p=param(self.runDir+'/param.nml')
-            self.reftime=dt.datetime(int(p.get_parameter('start_year')),
-            int(p.get_parameter('start_month')),
-            int(p.get_parameter('start_day')),
-            int(p.get_parameter('start_hour')),0,0)		
+            if self.newio==1:
+                self.reftime=dt.datetime(int(p.get_parameter('start_year')),
+                int(p.get_parameter('start_month')),
+                int(p.get_parameter('start_day')),
+                int(p.get_parameter('start_hour')),0,0)		
 
             self.nclist.append(ncs) # add ncs to list
             self.w0.config(to=len(self.nclist)-1)
@@ -645,7 +721,7 @@ class Window(tk.Frame):
             self.nstacks=self.nstacks0
         else:
             self.nstacks0=self.nstacks
-			
+
     def init_window(self,ncdirsel=None):
         self.pack(fill=tk.BOTH,expand=1)
         self.fig0=len(plt.get_fignums())+1
@@ -665,7 +741,13 @@ class Window(tk.Frame):
         self.load_setup_data(ncdirsel)
         self.active_setup=0
         self.ncs=self.nclist[0]		
-            
+        #if self.newio<2:
+        try:
+             self.dates=np.asarray([self.reftime + dt.timedelta(seconds=ti) for ti in            self.ncs[self.filetag]['time'].values],np.datetime64)	            
+        except:
+             self.newio=2
+             self.dates=self.ncs[self.filetag]['time'].values            		
+        self.dt=self.dates[1]-self.dates[0]
         #self.reftime=dt.datetime.strptime(self.nc['time'].units[14:33],'%Y-%m-%d %H:%M:%S')
         self.varlist=list(np.sort(self.varlist))		
         self.nt,self.nnodes,self.nz,=self.ncs[self.vardict[self.zcorname]][self.zcorname].shape
@@ -677,16 +759,20 @@ class Window(tk.Frame):
             self.y=self.ncs[self.filetag]['SCHISM_hgrid_node_y'][:].values
         else: # file dimension become cocantenated by files
             self.faces=np.asarray(self.ncs[self.filetag]['SCHISM_hgrid_face_nodes'][0,:].values-1,int)
-            self.x=self.ncs[self.filetag]['SCHISM_hgrid_node_x'][0,:].values
-            self.y=self.ncs[self.filetag]['SCHISM_hgrid_node_y'][0,:].values
-
+            try:
+                self.x=self.ncs[self.filetag]['SCHISM_hgrid_node_x'][0,:].values
+                self.y=self.ncs[self.filetag]['SCHISM_hgrid_node_y'][0,:].values
+            except:
+                self.x=self.ncs[self.filetag]['SCHISM_hgrid_node_x'][:].values
+                self.y=self.ncs[self.filetag]['SCHISM_hgrid_node_y'][:].values
+			
         try:
             self.stack_size=self.ncs[self.filetag].chunksizes['time'][0]
         except:
             self.stack_size=self.ncs[self.filetag].chunks['time'][0]
 			
         try:
-            lmin = self.ncs[self.filetag][self.bindexname][0,:].values
+            lmin = self.ncs[self.filetag][self.bindexname][un0,:].values
         except:
             zvar = self.ncs[self.vardict[self.zcorname]][self.zcorname][0]
             lmin = np.zeros(self.x.shape,dtype='int')
@@ -734,6 +820,7 @@ class Window(tk.Frame):
                     self.origins.append(nr)
             self.faces=np.array(faces2)                    
             self.origins=np.array(self.origins)
+            self.nelems=self.origins.max()+1
             print("done")
         else:
              self.faces=self.faces[:,:3]
@@ -874,12 +961,16 @@ class Window(tk.Frame):
 		
         row+=1 # eval results
         self.CheckEval = tk.IntVar(value=0)
-        fixz=tk.Checkbutton(self,text='eval  :',variable=self.CheckEval)
+        fixz=tk.Checkbutton(self,text='eval:',variable=self.CheckEval)
         fixz.grid(sticky = tk.W,row=row,column=0)
         self.evalex=tk.Entry(self,width=16)
         self.evalex.grid(row=row,column=1,columnspan=2)
         self.evalex.insert(8,'x=x')
-
+		
+        self.CheckTavg = tk.IntVar(value=0)
+        fixT=tk.Checkbutton(self,text='avg time',variable=self.CheckTavg)#,command=self.Tavg_callback)
+        fixT.grid(sticky = tk.W,row=row,column=3)
+        
         row+=1 # Apperance
         h1=tk.Label(self,text='\n Appearance:',anchor='w',font='Helvetica 10 bold')
         h1.grid(row=row,column=0)
@@ -986,15 +1077,27 @@ class Window(tk.Frame):
         row+=1
         l7=tk.Label(self,text='extract from:')
         l7.grid(row=row,column=0)
-        self.exfrom=tk.Entry(self,width=8)
-        self.exfrom.grid(row=row+1,column=0)
-        self.exfrom.insert(8,'0')
+        self.exfrom=tk.Entry(self,width=19)
+        self.exfrom.grid(row=row+1,column=0,columnspan=2)
+        #self.exfrom.insert(8,'0')
+        self.exfrom.insert(20,str(self.dates[0])[:19])
         l8=tk.Label(self,text='extract until:')
         l8.grid(row=row,column=1)
-        self.exto=tk.Entry(self,width=8)
-        self.exto.grid(row=row+1,column=1)
-        #self.exto.insert(8,str((self.stacks[self.nstacks-1]-self.stacks[0]+1)*self.nt))
-        self.exto.insert(8,str(self.nt))
+        self.exto=tk.Entry(self,width=19)
+        self.exto.grid(row=row+1,column=2,columnspan=2)
+        #self.exto.insert(8,str(self.nt))
+        self.exto.insert(20,str(self.dates[self.nt-1])[:19])
+
+		#debug button
+        row+=2   
+        debug = tk.Button(self,text='debug',command=self.debug_callback)
+        debug.grid(row=row,column=2)
+
+		#debug button
+        debug = tk.Button(self,text='close figs',wraplength=36,command=self.close_callback)
+        debug.grid(row=row,column=3)
+
+
 		
         # initial plot
         self.ivs=1
@@ -1045,36 +1148,17 @@ class Window(tk.Frame):
         #self.update_plots()        # on unix cluster initial fiugre remains black -> therefore reload
         print("done initializing")                      
 
-        row+=1    
+        #row+=1    
         # insert axlimits
         self.xminfield.insert(8,str(plt.gca().get_xlim()[0]))
         self.xmaxfield.insert(8,str(plt.gca().get_xlim()[1]))
         self.yminfield.insert(8,str(plt.gca().get_ylim()[0]))
         self.ymaxfield.insert(8,str(plt.gca().get_ylim()[1]))
 
-		#debug button
-        debug = tk.Button(self,text='debug',command=self.debug_callback)
-        debug.grid(row=row,column=2)
-
-		#debug button
-        debug = tk.Button(self,text='close figs',wraplength=36,command=self.close_callback)
-        debug.grid(row=row,column=3)
-		
-
     ####### call back
     def variable_callback(self,*args):    # select variable
         print("selected variable " + self.variable.get())
         self.varname=self.variable.get()
-        #if self.varname=='depth': # all vector here
-            #self.ivs=self.ncs[self.vardict[self.varname]][self.varname].ivs
-        #    self.ivs=1			
-		
-        #if ('vertical' in self.varname.lower()):
-        #    self.ivs=1		
-        #if ('vel' in self.varname.lower()) or ('wind' in self.varname.lower()): # all vector here			
-        #    self.ivs=2		
-        #else:
-        #    self.ivs=1
         self.shape=self.ncs[self.vardict[self.varname]][self.varname].shape        
         self.ivs=1+(self.shape[0]==2)
         self.schism_updateAtelems()
@@ -1251,9 +1335,8 @@ class Window(tk.Frame):
         iset=d1==0.0
         d1=d1[ivalid]
         d2=d2[ivalid]
-
-        weights[0,inodes[ivalid]]=1/d1/(1/d1+1/d2)
-        weights[1,inodes[ivalid]]=1/d2/(1/d1+1/d2)
+        weights[0,inodes[ivalid]]=1-d1/(d1+d2)#1/d1/(1/d1+1/d2)
+        weights[1,inodes[ivalid]]=1-weights[0,inodes[ivalid]]#1/d2/(1/d1+1/d2)
         weights[0,inodes[iset]]=1
         weights[:,np.sum(weights,0)==0.0]=np.nan
         
@@ -1333,6 +1416,13 @@ class Window(tk.Frame):
         self.ph,self.ch=self.schism_plotAtelems(self.nodevalues)
         self.schism_updateAtelems()
 		
+    #def Tavg_callback(self,*args): 
+    #    if self.uselonlat.get()==1:
+    #        self.plotx,self.ploty=self.lon,self.lat
+    #    else:
+    #        self.plotx,self.ploty=self.x,self.y		
+	
+		
     def ask_coordinates(self,n=-1,coords=None,interp=False):
             plt.figure(self.fig0)
             if coords==None:	 		
@@ -1346,13 +1436,6 @@ class Window(tk.Frame):
             else:
             	self.coords=coords
             	self.pt0i=self.plot_windows[self.activefig]['p0']
-            # plot coordinates on main figure / remove potential old coordinates
-            #if (len(self.anno)>0) :
-            #	try:
-            #		for item in self.anno:
-            #			item.remove()
-            #	except:
-            #		pass
 				
             if interp:  # interpolate coordinates for transect
 			           
@@ -1451,6 +1534,12 @@ class Window(tk.Frame):
             self.plot_windows[self.fignums]['diff']=self.CheckDiff.get()
             self.activefig=nr
 			
+    def read_time_selection(self):
+        np.datetime64(self.exfrom.get())-self.dates[0]
+        i0=np.int((np.datetime64(self.exfrom.get())-self.dates[0])/self.dt)
+        i1=np.int((np.datetime64(self.exto.get())-self.dates[0])/self.dt)
+        return i0,i1
+			
     def timeseries(self,coords=None):
         """"
         Extract timeseries at nextneighbours to clicked coordinates
@@ -1463,11 +1552,16 @@ class Window(tk.Frame):
             self.ask_coordinates(n=-1,coords=self.coords,interp=False)	
 
         print('extracting timeseries for ' + self.varname + ' at coordinates: ' + str(self.coords))
-        i0,i1=int(self.exfrom.get()),int(self.exto.get())
+        #i0,i1=int(self.exfrom.get()),int(self.exto.get())
+        #from IPython import embed; embed()
+        #i0,i1=int(self.exfrom.get()),int(self.exto.get())
+        i0,i1=self.read_time_selection()
         if self.oldio:
             self.t=self.ncs['schout']['time'].values[i0:i1]
-        else:
+        elif self.newio<2:
             self.t=np.asarray([self.reftime + dt.timedelta(seconds=ti) for ti in            self.ncs[self.filetag]['time'].values],np.datetime64)[i0:i1]
+        else:	
+            self.t=self.ncs[self.filetag]['time'].values[i0:i1]
         
         if self.shape[1:]==(self.nnodes,self.nz): #self.shape==(self.nt,self.nnodes,self.nz): #3D
             self.ncs[self.vardict[self.varname]][self.varname][:,self.nn,self.lvl]
@@ -1569,7 +1663,10 @@ class Window(tk.Frame):
                 plt.grid()
                 plt.xlabel(self.varname + comps[iplt-1])
                 if iplt==1:
-                    plt.title(str(self.reftime + dt.timedelta(seconds=int(self.ncs[self.filetag]['time'][self.total_time_index].values))))
+                    if self.newio<2:				
+                        plt.title(str(self.reftime + dt.timedelta(seconds=int(self.ncs[self.filetag]['time'][self.total_time_index].values))))
+                    else:	
+                        plt.title(self.ncs[self.filetag]['time'][self.total_time_index].values)					
                     plt.legend(['P'+str(i+self.pt0) for i in range(self.npt)])
                     plt.ylabel('depth / m')
                 else:
@@ -1596,14 +1693,18 @@ class Window(tk.Frame):
             self.ask_coordinates(n=1)
 
         print('extracting hovmoeller for ' + self.varname + ' at coordinates: ' + str(self.coords))
-        i0,i1=int(self.exfrom.get()),int(self.exto.get())
-
+        #i0,i1=int(self.exfrom.get()),int(self.exto.get())
+        i0,i1=self.read_time_selection()
         self.zcor=np.squeeze(self.ncs[self.vardict[self.zcorname]][self.zcorname][i0:i1,self.nn,:])
 
         if self.oldio:
             self.t=self.ncs['schout']['time'].values[i0:i1]
-        else:
+        elif self.newio<2:
             self.t=np.asarray([self.reftime + dt.timedelta(seconds=ti) for ti in            self.ncs[self.filetag]['time'].values],np.datetime64)[i0:i1]
+        else:	
+            self.t=self.ncs[self.filetag]['time'].values[i0:i1]
+
+		
         if self.shape[1:3]==(self.nnodes,self.nz):#self.shape[:3]==(self.nt,self.nnodes,self.nz):
             self.ts=np.squeeze(self.ncs[self.vardict[self.varname]][self.varname][i0:i1,self.nn,:])
         elif self.shape[2:]==(self.nnodes,self.nz):#self.shape[1:]==(self.nt,self.nnodes,self.nz):#hvel
@@ -1654,13 +1755,15 @@ class Window(tk.Frame):
             self.ask_coordinates(n=-1,interp=True)
 
         print('extracting hovmoeller for ' + self.varname + ' at coordinates: ' + str(self.coords))
-        i0,i1=int(self.exfrom.get()),int(self.exto.get())
-
+        #i0,i1=int(self.exfrom.get()),int(self.exto.get())
+        i0,i1=self.read_time_selection()
 		#self.zcor=np.squeeze(self.ncs[self.vardict[self.zcorname]][self.zcorname][i0:i1,self.nn,:])
         if self.oldio:
             self.t=self.ncs['schout']['time'].values[i0:i1]
-        else:
+        elif self.newio<2:
             self.t=np.asarray([self.reftime + dt.timedelta(seconds=ti) for ti in            self.ncs[self.filetag]['time'].values],np.datetime64)[i0:i1]
+        else:	
+            self.t=self.ncs[self.filetag]['time'].values[i0:i1]			
 			
         if self.shape[1:3]==(self.nnodes,self.nz):#self.shape[:3]==(self.nt,self.nnodes,self.nz):
             self.ts=np.squeeze(self.ncs[self.vardict[self.varname]][self.varname][i0:i1,self.nn,self.lvl])
@@ -1724,7 +1827,7 @@ class Window(tk.Frame):
             self.zi.mask[np.isnan(self.zi)]=True
             cmap=self.cmap_callback() #        self.set_colormap_workaround(self)			
             plt.figure(self.activefig)
-            plt.pcolor(self.xs,self.zi,dataTrans,cmap=cmap) 
+            ph=plt.pcolor(self.xs,self.zi,dataTrans,cmap=cmap) 
             plt.ylabel('depth / m')
             plt.plot(self.xs[:,0],self.zi[:,0],'k',linewidth=2)
             ch=plt.colorbar()
@@ -1736,7 +1839,7 @@ class Window(tk.Frame):
         else:	
             plt.title(self.titlegen(np.nan))     
        		
-        return ch
+        return ph,ch
 		
 	#def add_quiv(self,dataTrans):	
         #plt.quiver(self.xs,self.zi,dataTrans[:,:,0],dataTrans[:,:,0],color='w') #shading=['flat','faceted'][self.meshVar.get()]
@@ -1879,35 +1982,45 @@ class Window(tk.Frame):
 		
             comps=[' - u', '- v ', '- abs' ]
             ax3=plt.subplot(3,1,3)
-            ch=self.plot_transect(np.sqrt(self.dataTrans[0,:,:]**2+self.dataTrans[1,:,:]**2),is2d)
+            ph,ch=self.plot_transect(np.sqrt(self.dataTrans[0,:,:]**2+self.dataTrans[1,:,:]**2),is2d)
             ch.set_label(self.varname + comps[-1])			
+            if  not is2d:		
+                plt.clim(self.clim) 
+
+            if self.newio<2:
+                plt.title(str(self.reftime + dt.timedelta(seconds=int(self.ncs[self.filetag]['time'][self.total_time_index]))))
+            else:
+                plt.title(str(self.ncs[self.filetag]['time'][self.total_time_index]))
+				
             for iplt in range(0,2):
                 plt.subplot(3,1,iplt+1,sharex=ax3,sharey=ax3)
-                ch=self.plot_transect(self.dataTrans[iplt,:,:],is2d)
+                ph,ch=self.plot_transect(self.dataTrans[iplt,:,:],is2d)
+                ph.set_cmap(cmo.balance)
+				
                 if self.quivVar.get():
                     plt.quiver(self.xs,self.zi,self.dataTrans[0,:,:],self.dataTrans[-1,:,:],color='w')
                 plt.tick_params(axis='x',labelbottom='off')
                 ch.set_label(self.varname + comps[iplt])
                 plt.gca().set_ylim(ylim)
-                plt.clim(self.clim) 
+                #plt.clim(self.clim) 
                 plt.xlim((self.xs.min(),self.xs.max()))	
-                if iplt==1:
-                    plt.title(str(self.reftime + dt.timedelta(seconds=int(self.ncs[self.filetag]['time'][self.total_time_index]))))
-                
+
+
+						
         plt.gca().set_ylim(ylim)
-        if  not is2d:		
-            plt.clim(self.clim) 
+        #if  not is2d:		
+        #    plt.clim(self.clim) 
         plt.xlabel('transect length [points]')
         plt.xlim((self.xs.min(),self.xs.max()))			 #insert extra
 		
         plt.tight_layout()
-        self.update_plots()		
+        #self.update_plots()		
 		
         self.zminfield.delete(0, 'end'),self.zmaxfield.delete(0, 'end')
         self.zminfield.insert(8,str(plt.gca().get_ylim()[0])),self.zmaxfield.insert(8,str(plt.gca().get_ylim()[1]))
 		#self.zminfield.insert(8,str(ylim[0])),self.zmaxfield.insert(8,str(ylim[1]))
 		#self.zminfield.insert(8,str(ylim[0])),self.zmaxfield.insert(8,(ylim[1]))
-        self.update_plots()
+        #self.update_plots()
 		
     # navigate time steps    
     def firstts(self):
@@ -2041,7 +2154,11 @@ class Window(tk.Frame):
             ''' plot against observation file '''	
             obsfile=filedialog.askopenfile(title='select observation file',filetypes = (('bp files', '*.nc'),('All files', '*.*'))).name
             self.dates=np.asarray([self.reftime + dt.timedelta(seconds=ti) for ti in            self.ncs[self.filetag]['time'].values],np.datetime64)
-            
+            if self.newio<2:
+                self.dates=np.asarray([self.reftime + dt.timedelta(seconds=ti) for ti in            self.ncs[self.filetag]['time'].values],np.datetime64)	            
+            else:
+                self.dates=self.ncs[self.filetag]['time'].values       
+			
             self.obsnc=xr.open_dataset(obsfile)
             self.obsnc=self.obsnc.sel(TIME=slice(self.dates[0],self.dates[-1]))
             
@@ -2067,6 +2184,7 @@ class Window(tk.Frame):
 # launch gui
 root = tk.Tk()
 root.geometry("420x460")
+#root.geometry("420x480")
 root.grid_rowconfigure(12, minsize=100)  
 root.grid_columnconfigure(4, minsize=100)  
 if __name__ == "__main__":
