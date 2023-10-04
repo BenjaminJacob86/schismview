@@ -9,6 +9,9 @@ __author__  = "Benjamin Jacob"
 __license__ = "GNU GPL v2.0"
 __email__ = "benjamin.jacob@hereon.de"
 
+# add nn interpolation to compare different schism setups
+# on different grid but same temporal output
+
 # speed up vecotr plotting
 # use subaxes in figure
 
@@ -823,6 +826,7 @@ class Window(tk.Frame):
             self.nelems=self.origins.max()+1
             print("done")
         else:
+             self.nelems=len(self.faces)		
              self.faces=self.faces[:,:3]
              self.origins=np.arange(self.faces.shape[0])
         ##########################################  
