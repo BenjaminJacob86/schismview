@@ -155,8 +155,11 @@ class Window(tk.Frame):
 		
 		#options
         self.proj_transects=True # prject velocity transects plots as along and across component
+        self.calc_transport=True 
         self.transdy=2  # quiver trabsect locations each yths points in vdirection
         self.transdx=3  # quiver trabsect locations each xths points in x direction
+		
+        self.transect_transport={}
                     
     def find_parent_tri(self,tris,xun,yun,xq,yq,dThresh=1000):
         """ parents,ndeweights=find_parent_tri(tris,xun,yun,xq,yq,dThresh=1000)
@@ -2025,7 +2028,29 @@ class Window(tk.Frame):
                 ualong=(self.dataTrans[:2,:,:]*self.transect['tangent'][:,:,:]).sum(axis=self.ivs_axis) 	
                 uacross=(self.dataTrans[:2,:,:]*self.transect['nor'][:,:,:]).sum(axis=self.ivs_axis)
                 self.dataTrans[0,:,:]=ualong
-                self.dataTrans[1,:,:]=uacross				
+                self.dataTrans[1,:,:]=uacross
+				
+                if self.calc_transport:
+                    #calc volume transport
+                    dll=np.tile(dl,(self.zi.shape[1],1)).T
+                    dz=np.diff(self.zi,axis=1)
+                    hc=0.5*(dz[0:-1,:]+dz[1:,:])
+                    Ai=dll[:,:-1]*hc  #prism cross area #[:,:-1
+                    vi=(uacross[0:-1,1:] + uacross[1:,1:] + uacross[0:-1,0:-1] + uacross[1:,0:-1])/4     
+                    Q=Ai*vi                               
+                    Qi=Q.sum()				
+                    ipos=vi>0
+                    Qpos=Q[ipos].sum()	
+                    Qneg=Q[~ipos].sum()	
+				    
+				    # store timeseries
+                    if not self.activefig in self.transect_transport.keys():
+                        self.transect_transport[self.activefig]={'t':self.dates,'Q':np.zeros(self.nt),'Qpos':np.zeros(self.nt),'Qneg':np.zeros(self.nt)}
+                    ti=self.total_time_index			
+                    self.transect_transport[self.activefig]['Q'][ti]=Qi
+                    self.transect_transport[self.activefig]['Qpos'][ti]=Qpos
+                    self.transect_transport[self.activefig]['Qneg'][ti]=Qneg
+
             else:
                 comps=[' - u', '- v ', '- abs' ]
 				
@@ -2054,6 +2079,9 @@ class Window(tk.Frame):
                     w=self.ncs[self.vardict[self.vertvelname]][self.vertvelname][self.total_time_index,:,:].values[self.nn,:]*100
                     print('!vertical componend is exaggerated by factor 100')
                     plt.quiver(self.xs[::dx,::dy],self.zi[::dx,::dy],self.dataTrans[0,:,:][::dx,::dy],w[::dx,::dy],color='w')
+                if self.calc_transport and iplt==1:
+                    plt.text(self.xs.min(), self.zi.min()*0.9,'Qtot:{:0.2f}\nQpos:{:0.2f}\nQneg:{:0.2f}\n m^3/s'.format(Qi,Qpos,Qneg))
+					
                 plt.tick_params(axis='x',labelbottom='off')
                 ch.set_label(self.varname + comps[iplt])
                 plt.gca().set_ylim(ylim)
