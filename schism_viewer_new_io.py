@@ -152,6 +152,9 @@ class Window(tk.Frame):
         self.master = master
         self.use_cmocean=use_cmocean
         self.init_window(ncdirsel=ncdirsel)
+		
+		#options
+        self.proj_transects=True # prject velocity transects plots as along and across component
                     
     def find_parent_tri(self,tris,xun,yun,xq,yq,dThresh=1000):
         """ parents,ndeweights=find_parent_tri(tris,xun,yun,xq,yq,dThresh=1000)
@@ -1432,15 +1435,19 @@ class Window(tk.Frame):
             if coords==None:	 		
                 plt.title("click coordinates in Fig.1. Press ESC when finished")
                 print("click coordinates in Fig.1. Press ESC when finished")
-                self.pt0i=self.pt0 # keep track of point annotations			
+                #self.pt0i=self.pt0 # keep track of point annotations			
                 self.update_plots()
                 plt.figure(self.fig0)
                 self.coords=plt.ginput(n,show_clicks='True')
                 plt.title(self.titlegen(self.lvl))
             else:
             	self.coords=coords
-            	self.pt0i=self.plot_windows[self.activefig]['p0']
-				
+            self.pt0i=self.pt0 # keep track of point	
+            	#try:
+            	#	self.pt0i=self.plot_windows[self.activefig]['p0']
+            	#except:
+            	#	self.activefig=0
+            	#	self.pt0i=self.plot_windows[self.activefig]['p0']				
             if interp:  # interpolate coordinates for transect
 			           
             	xy=np.asarray(self.coords)
@@ -1477,6 +1484,8 @@ class Window(tk.Frame):
             self.npt=ivalid.sum()#len(x)
             self.xs=np.tile(np.arange(self.npt),(self.nz,1)).T
             self.coords=coords1					
+			
+            
 			
             if (self.extract==self.transect_callback) or (self.extract==self.hovmoeller_horz): # interp coordinates
 			
@@ -1967,6 +1976,29 @@ class Window(tk.Frame):
                     #elf.dataTrans[ivs,i,ibttm]=(lvldata[ivs,:,ibttm]*w[i,:]).sum() 					
                 #self.dataTrans=np.ma.masked_array(self.dataTrans,mask=self.dataTrans==0.0)
 
+			#self.xs
+            if self.proj_transects:
+                self.proj_transects
+                self.transect={} #'x':x,'y':y
+                xy=np.asarray(self.coords)
+                dl=np.sqrt((np.diff(xy,axis=0)**2).sum(axis=1))
+                self.transect['l']=dl.cumsum()
+                self.transect['l']=np.tile(self.transect['l'],[self.nz,1]).T
+                tangent=np.diff(xy,axis=0)/np.tile(dl,(2,1)).T
+                tangent=np.vstack((tangent[0,:],tangent))           
+                nor=np.vstack((tangent[:,1],-tangent[:,0] )).T
+                #nor=np.vstack((nor[0,:],nor))
+                tangent=np.tile(tangent,(self.nz,1,1)).swapaxes(0,1)
+                nor=np.tile(nor,(self.nz,1,1)).swapaxes(0,1)
+                
+                if self.newio:
+                    self.transect['tangent']=tangent.swapaxes(1,2).swapaxes(0,1)
+                    self.transect['nor']=nor.swapaxes(1,2).swapaxes(0,1)
+                    self.ivs_axis=0
+                else:	  
+                    self.ivs_axis=2	 			
+			
+			# tangent	
             print('usig nearest neighbour interpolation for transect')
             d,qloc=self.xy_nn_tree.query(self.coords)
             isub=np.unique(qloc,return_index=True)[1] # only use unique values
@@ -1984,7 +2016,17 @@ class Window(tk.Frame):
             #self.xs=self.xs[:len(isub),:]				
             self.xs=self.xs[:len(qloc),:]				
 		
-            comps=[' - u', '- v ', '- abs' ]
+
+			
+            if self.proj_transects:
+                comps=[' - along', '- across ', '- abs' ]
+                ualong=(self.dataTrans[:2,:,:]*self.transect['tangent'][:,:,:]).sum(axis=self.ivs_axis) 	
+                uacross=(self.dataTrans[:2,:,:]*self.transect['nor'][:,:,:]).sum(axis=self.ivs_axis)
+                self.dataTrans[0,:,:]=ualong
+                self.dataTrans[1,:,:]=uacross				
+            else:
+                comps=[' - u', '- v ', '- abs' ]
+				
             ax3=plt.subplot(3,1,3)
             ph,ch=self.plot_transect(np.sqrt(self.dataTrans[0,:,:]**2+self.dataTrans[1,:,:]**2),is2d)
             ch.set_label(self.varname + comps[-1])			
@@ -1995,20 +2037,29 @@ class Window(tk.Frame):
                 plt.title(str(self.reftime + dt.timedelta(seconds=int(self.ncs[self.filetag]['time'][self.total_time_index]))))
             else:
                 plt.title(str(self.ncs[self.filetag]['time'][self.total_time_index]))
-				
+			
+			
             for iplt in range(0,2):
                 plt.subplot(3,1,iplt+1,sharex=ax3,sharey=ax3)
                 ph,ch=self.plot_transect(self.dataTrans[iplt,:,:],is2d)
                 ph.set_cmap(cmo.balance)
+                vmax=np.abs(self.dataTrans[iplt,:,:]).max()
+                ph.set_clim((-vmax,vmax))
 				
                 if self.quivVar.get():
-                    plt.quiver(self.xs,self.zi,self.dataTrans[0,:,:],self.dataTrans[-1,:,:],color='w')
+                    #plt.quiver(self.xs[::3,::2],self.zi[::3,::2],self.dataTrans[0,:,:][::3,::2],self.dataTrans[-1,:,:][::3,::2],color='w')
+					# use vertical component
+                    w=self.ncs[self.vardict[self.vertvelname]][self.vertvelname][self.total_time_index,:,:].values[self.nn,:]*100
+                    print('!vertical componend is exaggerated by factor 100')
+                    plt.quiver(self.xs[::3,::2],self.zi[::3,::2],self.dataTrans[0,:,:][::3,::2],w[::3,::2],color='w')
                 plt.tick_params(axis='x',labelbottom='off')
                 ch.set_label(self.varname + comps[iplt])
                 plt.gca().set_ylim(ylim)
                 #plt.clim(self.clim) 
                 plt.xlim((self.xs.min(),self.xs.max()))	
-
+				
+                #plt.figure(self.activefig).canvas.draw()
+                plt.figure(self.activefig).canvas.flush_events() # flush gu
 
 						
         plt.gca().set_ylim(ylim)
