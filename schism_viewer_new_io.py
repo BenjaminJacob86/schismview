@@ -2050,7 +2050,7 @@ class Window(tk.Frame):
                 if self.quivVar.get():
                     #plt.quiver(self.xs[::3,::2],self.zi[::3,::2],self.dataTrans[0,:,:][::3,::2],self.dataTrans[-1,:,:][::3,::2],color='w')
 					# use vertical component
-					dx,dy=self.transdx,self.transdy
+                    dx,dy=self.transdx,self.transdy
                     w=self.ncs[self.vardict[self.vertvelname]][self.vertvelname][self.total_time_index,:,:].values[self.nn,:]*100
                     print('!vertical componend is exaggerated by factor 100')
                     plt.quiver(self.xs[::dx,::dy],self.zi[::dx,::dy],self.dataTrans[0,:,:][::dx,::dy],w[::dx,::dy],color='w')
