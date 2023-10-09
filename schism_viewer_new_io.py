@@ -155,6 +155,8 @@ class Window(tk.Frame):
 		
 		#options
         self.proj_transects=True # prject velocity transects plots as along and across component
+        self.transdy=2  # quiver trabsect locations each yths points in vdirection
+        self.transdx=3  # quiver trabsect locations each xths points in x direction
                     
     def find_parent_tri(self,tris,xun,yun,xq,yq,dThresh=1000):
         """ parents,ndeweights=find_parent_tri(tris,xun,yun,xq,yq,dThresh=1000)
@@ -2045,13 +2047,13 @@ class Window(tk.Frame):
                 ph.set_cmap(cmo.balance)
                 vmax=np.abs(self.dataTrans[iplt,:,:]).max()
                 ph.set_clim((-vmax,vmax))
-				
                 if self.quivVar.get():
                     #plt.quiver(self.xs[::3,::2],self.zi[::3,::2],self.dataTrans[0,:,:][::3,::2],self.dataTrans[-1,:,:][::3,::2],color='w')
 					# use vertical component
+					dx,dy=self.transdx,self.transdy
                     w=self.ncs[self.vardict[self.vertvelname]][self.vertvelname][self.total_time_index,:,:].values[self.nn,:]*100
                     print('!vertical componend is exaggerated by factor 100')
-                    plt.quiver(self.xs[::3,::2],self.zi[::3,::2],self.dataTrans[0,:,:][::3,::2],w[::3,::2],color='w')
+                    plt.quiver(self.xs[::dx,::dy],self.zi[::dx,::dy],self.dataTrans[0,:,:][::dx,::dy],w[::dx,::dy],color='w')
                 plt.tick_params(axis='x',labelbottom='off')
                 ch.set_label(self.varname + comps[iplt])
                 plt.gca().set_ylim(ylim)
@@ -2059,7 +2061,7 @@ class Window(tk.Frame):
                 plt.xlim((self.xs.min(),self.xs.max()))	
 				
                 #plt.figure(self.activefig).canvas.draw()
-                plt.figure(self.activefig).canvas.flush_events() # flush gu
+                #plt.figure(self.activefig).canvas.flush_events() # flush gu
 
 						
         plt.gca().set_ylim(ylim)
