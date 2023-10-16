@@ -1648,13 +1648,14 @@ class Window(tk.Frame):
         zs=self.ncs[self.zcorname][self.zcorname][self.total_time_index,self.nn,:].values                        
         if self.shape[1:]==(self.nnodes,self.nz):#self.shape==(self.nt,self.nnodes,self.nz):
             ps=self.ncs[self.vardict[self.varname]][self.varname][self.total_time_index,self.nn,:].values
-
+            ps=np.ma.masked_array(ps,mask=self.mask3d[self.nn,:])
             if self.npt>1:
                 ps=ps.swapaxes(0,1)
                 zs=zs.swapaxes(0,1)			
             
         elif self.shape[2:]==(self.nnodes,self.nz):#self.shape==(2,self.nt,self.nnodes,self.nz): #hvel
             ps=self.ncs[self.vardict[self.varname]][self.varname][:,self.total_time_index,self.nn,:].values
+            ps=np.ma.masked_array(ps,mask=self.mask_hvel[:,self.nn,:])
             if self.npt>1:
                 ps=ps.swapaxes(1,2)
                 zs=zs.swapaxes(0,1)			
@@ -1668,7 +1669,7 @@ class Window(tk.Frame):
         if self.ivs==1:
             plt.title(self.titlegen(''))
             #plt.title(str(self.reftime + dt.timedelta(seconds=int(self.ncs[self.filetag]['time'][self.total_time_index].values))))
-            plt.plot(ps,zs)
+            plt.plot(ps,zs,'.-')
             plt.ylabel('depth / m')
             plt.xlabel(self.varname)
             plt.legend(['P'+str(i+self.pt0) for i in range(self.npt)])
@@ -1677,7 +1678,7 @@ class Window(tk.Frame):
             comps=[' - u', '- v ', '- abs' ]
             for iplt in range(1,3):
                 plt.subplot(1,3,iplt)
-                plt.plot(ps[iplt-1,:],zs)
+                plt.plot(ps[iplt-1,:],zs,'.-')
                 plt.grid()
                 plt.xlabel(self.varname + comps[iplt-1])
                 if iplt==1:
@@ -1690,7 +1691,7 @@ class Window(tk.Frame):
                 else:
                     plt.tick_params(axis='y',labelleft='off')
             plt.subplot(1,3,3)
-            plt.plot(np.sqrt(ps[0,:]**2+ps[1,:]**2),zs)
+            plt.plot(np.sqrt(ps[0,:]**2+ps[1,:]**2),zs,'.-')
             plt.xlabel(self.varname + comps[2])
             plt.grid()
             plt.tick_params(axis='y',labelleft='off')
@@ -1904,7 +1905,18 @@ class Window(tk.Frame):
             isub=np.unique(qloc,return_index=True)[1] # only use unique values # changes orde
             qloc=np.asarray([indi for indi in qloc if indi in qloc[isub]])
             self.zi=zcor[qloc,:]
-		
+            #self.coords=list(np.asarray(self.coords)[qloc])  #test BJ
+			#test only unqiue nn points BJ
+            ikeep=np.where(np.hstack((0,np.diff(qloc)))!=0) 
+            self.coords=list(np.asarray(self.coords)[ikeep])  #test BJ
+            d,qloc=self.xy_nn_tree.query(self.coords)
+            isub=np.unique(qloc,return_index=True)[1] # only use unique values # changes orde
+            qloc=np.asarray([indi for indi in qloc if indi in qloc[isub]])
+            self.zi=zcor[qloc,:]#
+            if len(self.coords) != len(self.nn):
+                self.nn=self.nn[ikeep]            
+
+			
         ylim=((np.nanmin(self.zi),5)) # nan
         plt.figure(self.activefig)
         plt.clf()
