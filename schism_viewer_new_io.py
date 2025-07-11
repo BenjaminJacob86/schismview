@@ -274,7 +274,7 @@ class Window(tk.Frame):
         self.fig.canvas.draw()  # Make sure the canvas is drawn
         self.background = self.fig.canvas.copy_from_bbox(self.ax0.bbox)  # Save background for blitting
         if not self.ch is None:
-            self.ch.draw_all()  # Force redraw of the colorbar      
+            self.ch.draw()  # Force redraw of the colorbar       self.ch.draw_all()
         return ph #, self.colorbar
 
     def schism_updateAtelems(self):
