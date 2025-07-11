@@ -25,7 +25,7 @@ __email__ = "benjamin.jacob@hereon.de"
 # print("Try holding the 'ctrl' key to move a single vertex.")
 
 
-# salloc --x11 -p interactive -A gg0028 -n 4 -t 480
+# salloc --x11 -p interactive -A gg0028 -n 10 -t 480
 import sys
 import glob
 import dask
@@ -52,6 +52,7 @@ import warnings
 #testing
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
+
 # triy imprting cmpocean as prefered colormap
 try:  # use cmocean colormaps if installed else matplotlib #not working withe regstration workaround here
     import cmocean
@@ -67,9 +68,12 @@ try:  # use cmocean colormaps if installed else matplotlib #not working withe re
 except:  # use classic matploib for color selection
     use_cmocean = False
     print('using matplotlib colormaps')
+# use_cmocean=False	manually force classic colormaps
+#use_cmocean = False
 
 
 warnings.filterwarnings("ignore")
+
 if sys.version_info > (3, 0):  # check tkinter python 2 / 3
     from tkinter import filedialog
     import tkinter as tk
@@ -78,19 +82,23 @@ else:
     import tkFileDialog as filedialog
 
 
-try: # incorporate cartopy plots
-     from mpl_toolkits.axes_grid1 import make_axes_locatable # allow axis adjustment of colorbar	  
-     # cartopy
-     import cartopy.crs as ccrs
-     import cartopy.feature as cfeature
-     from cartopy.mpl.ticker import LongitudeFormatter, LatitudeFormatter
-     fancy=True     
-     
-except: 
-     fancy=False
+# put usage of cmocan in here but kind of an ugly implementation
 
-if fancy:
-     print('using cartopy for cartographic plots')
+# how to add comparing variables in debug mode
+### add computational varname To list
+# varname1='sedDepositionalFlux'
+# varname2='sedErosionalFlux'
+# varname='sedNetDeposition'
+# self.varlist=list(self.varlist)+[varname,]
+# self.vardict[varname]=varname
+# self.ncs[varname]={varname:self.ncs[self.vardict[varname1]][varname1]-self.ncs[self.vardict[varname2]][varname2]}
+# phi = 0 #porosity
+# cumulated sedimient flux
+# self.ncs[varname]={varname:((self.ncs[self.vardict[varname1]][varname1]-self.ncs[self.vardict[varname2]][varname2])*3600/(2650*1-phi)).cumsum()}
+# self.varlist=list(np.sort(self.varlist))
+# self.combo['values']=np.sort(self.combo['values']+(varname,))
+
+# add diff mode
 
 class param:
     """	functions for param.in for reading and editing. Operates in local directory """
@@ -150,12 +158,10 @@ class param:
 class Window(tk.Frame):
     plt.ion()  # notwendig  yes?
 
-    def __init__(self, master=None, ncdirsel=None, use_cmocean=use_cmocean, fancy=fancy):
-        mycolor = '#%02x%02x%02x' % (83, 104, 120)
-        tk.Frame.__init__(self, master,bg=mycolor)
+    def __init__(self, master=None, ncdirsel=None, use_cmocean=use_cmocean):
+        tk.Frame.__init__(self, master)
         self.master = master
         self.use_cmocean = use_cmocean
-        self.fancy = fancy        
         self.init_window(ncdirsel=ncdirsel)
 
         # options
@@ -245,36 +251,17 @@ class Window(tk.Frame):
                 intv /= (dz.sum(axis=-1))
             return int, intu, intv
 
-    def schism_plotAtelems(self, nodevalues, add_cb=True,overwrite=True):
-        #ph = plt.tripcolor(self.plotx, self.ploty, self.faces[:, :3],
-        #                   facecolors=self.nodevalues[self.faces[:, :3]].mean(axis=1), shading='flat',
-        #                   alpha=None)  # test alpha = None for transparancy
-        ph = self.ax0.tripcolor(self.plotx, self.ploty, self.faces[:, :3],
+    def schism_plotAtelems(self, nodevalues, add_cb=True):
+        ph = plt.tripcolor(self.plotx, self.ploty, self.faces[:, :3],
                            facecolors=self.nodevalues[self.faces[:, :3]].mean(axis=1), shading='flat',
                            alpha=None)  # test alpha = None for transparancy
+                           
         #if add_cb:
         #    ch = plt.colorbar(extend='both')
         #else:
         #    ch = None
-        if overwrite:
-              # adjust height of colorbar to fit plot axes
-            if self.fancy:              
-                divider = make_axes_locatable(self.ax0)
-                cax = divider.append_axes("right", size="5%", pad=0.05, axes_class=plt.Axes)
-                self.ch=self.fig.colorbar(self.ph,cax=cax) if add_cb else None
-                # Remove ticks from the colorbar axis
-                cax.set_xticks([])  # if horizontal
-                cax.set_yticks([])  # if vertical
-                
-            else:
-                self.ch = self.fig.colorbar(self.ph, ax=self.ax0,extend='both') if add_cb else None  # Add colorbar if needed            
+        self.colorbar = self.fig.colorbar(self.ph, ax=self.ax) if add_cb else None  # Add colorbar if needed            
         plt.tight_layout()
-        #self.background = self.fig.canvas.copy_from_bbox(self.ax0.bbox)        
-    # Save the background for blitting optimization
-        self.fig.canvas.draw()  # Make sure the canvas is drawn
-        self.background = self.fig.canvas.copy_from_bbox(self.ax0.bbox)  # Save background for blitting
-        if not self.ch is None:
-            self.ch.draw_all()  # Force redraw of the colorbar      
         return ph #, self.colorbar
 
     def schism_updateAtelems(self):
@@ -285,7 +272,7 @@ class Window(tk.Frame):
             self.arrowlabel.remove()
             self.quiver = 0
         if self.CheckFixZ.get() != 0:
-            ibelow, iabove, weights = self.get_layer_weights(float(self.fixdepth.get()))
+            ibelow, iabove, weights = self.get_layer_weights(np.double(self.fixdepth.get()))
             lvl = str(self.fixdepth.get() + ' m')
         else:
             lvl = self.lvl
@@ -516,7 +503,7 @@ class Window(tk.Frame):
             self.minfield.insert(8, str(cmin))
             self.maxfield.insert(8, str(cmax))
         else:
-            self.clim = (float(self.minfield.get()), float(self.maxfield.get()))
+            self.clim = (np.double(self.minfield.get()), np.double(self.maxfield.get()))
         self.ph.set_clim(self.clim)
 
         # add quiver
@@ -534,7 +521,7 @@ class Window(tk.Frame):
             if (self.shape == (self.nt, self.nnodes)) or (self.shape == (self.nt, self.nnodes, self.nz)):
                 vmax = 1.5  # np.percentile(np.sqrt(u[qloc]**2+v[qloc]**2),0.95)
             else:
-                vmax = float(self.maxfield.get())
+                vmax = np.double(self.maxfield.get())
             if self.shape[0] != 2:
                 # load velocity for quiver plots on top of no velocity variables
                 if self.oldio:
@@ -574,33 +561,11 @@ class Window(tk.Frame):
                 self.plot_windows[fignr]['anno'] = []
 
         # update plot
-        #plt.title(title)
-        self.ax0.set_title(title)
-        self.update_plots()        
+        plt.title(title)
+        self.update_plots()
         print("done plotting ")
 
     def update_plots(self):
-        ### update main plot
-        ### Restore the background
-        ##self.fig.canvas.restore_region(self.background)
-        ##
-        ### Redraw the dynamic artist (the tripcolor plot in this case)
-        ##self.ax0.draw_artist(self.ph)
-        ##
-        ###self.ch.draw_artist(self.ch.ax)  # Draw only the colorbar
-        self.ch.update_normal(self.ph)  # Synchronize colorbar with the plot        
-        self.ch.ax.draw_artist(self.ch.ax) # updates the label ppart
-        #
-        ## Use blitting to only update the necessary regions
-        ##self.fig.canvas.blit(self.ax0.bbox)        # Update the plot area
-        
-        
-        #self.fig.canvas.blit(self.ch.ax.bbox)      # Update the colorbar area # alone nit wirjubg
-        
-        
-        ## Flush events to keep the plot interactive
-        #self.fig.canvas.flush_events()
-
         for figi in plt.get_fignums()[1:]:
             try:
                 plt.clim(self.clim)  # not sure
@@ -728,7 +693,7 @@ class Window(tk.Frame):
             self.vertvelname = 'vertical_velocity'
             # work around to map old velocity as new velocity formatted
 
-            strdte = [float(digit) for digit in ncs[self.filetag]['time'].attrs['base_date'].split()]
+            strdte = [np.float(digit) for digit in ncs[self.filetag]['time'].attrs['base_date'].split()]
             self.reftime = dt.datetime.strptime(
                 '{:04.0f}-{:02.0f}-{:02.0f} {:02.0f}:{:02.0f}:{:02.0f}'.format(strdte[0], strdte[1], strdte[2],
                                                                                strdte[3], strdte[3], 0),
@@ -970,15 +935,6 @@ class Window(tk.Frame):
 
         ##########################################################################
         #### GUI ELEMENTS ##############
-        
-        # Define a style for the tttk.Checkbutton
-        style = ttk.Style()
-        style.theme_use('clam')
-        # Create a custom style for the checkbuttons with a specific background and foreground color
-        style.configure("Custom.TCheckbutton", background="#536878", foreground="white", font=('Helvetica', 12))
-        style.configure("Custom.TLabel", background="#6A7F91", foreground="white", font=('Helvetica', 12))
-        style.configure("Custom.TButton", background="#495E6E", foreground="white", font=('Helvetica', 12))
-        
         menubar = tk.Menu(self.master)
         filemenu = tk.Menu(menubar, tearoff=0)
         filemenu.add_command(label="Exit", command=self.client_exit)
@@ -1005,8 +961,7 @@ class Window(tk.Frame):
 
         # add setup sel
         row = 0
-        L1 = ttk.Label(self, text='setup:', style="Custom.TLabel")
-        #L1.config(borderwidth=1, relief="solid")
+        L1 = tk.Label(self, text='setup:')
         L1.grid(row=row, column=0)  # .place(x=260,y=0)
 
         # variable declaration moved as workadournd
@@ -1015,25 +970,25 @@ class Window(tk.Frame):
         self.w0.grid(row=row, column=1)
         self.stp_tk.trace("w", self.stp_callback)  # activate call back after set
 
-        add_setup = ttk.Button(self, text='add setup', command=self.load_setup_data,style="Custom.TButton")
+        add_setup = tk.Button(self, text='add setup', command=self.load_setup_data)
         add_setup.grid(row=row, column=2)
 
         self.CheckDiff = tk.IntVar(value=0)  # move before  plotAtElems definition to avoid error
-        checkdiff = ttk.Checkbutton(self, text='show diff', variable=self.CheckDiff,
-                                   command=self.stp_callback, style="Custom.TCheckbutton")  # ,command=self.CheckDiff_callback)
+        checkdiff = tk.Checkbutton(self, text='show diff', variable=self.CheckDiff,
+                                   command=self.stp_callback)  # ,command=self.CheckDiff_callback)
         checkdiff.grid(sticky=tk.W, row=row, column=3)
 
         row = 1
-        L1 = ttk.Label(self, text='variable', style="Custom.TLabel")
+        L1 = tk.Label(self, text='variable')
         L1.grid(row=row, column=0)  # .place(x=260,y=0)
 
-        L2 = ttk.Label(self, text='layer', style="Custom.TLabel")
+        L2 = tk.Label(self, text='layer')
         L2.grid(row=row, column=1)  # .place(x=200,y=0)
 
-        L3 = ttk.Label(self, text='stack', style="Custom.TLabel")
+        L3 = tk.Label(self, text='stack')
         L3.grid(row=row, column=2)
 
-        L2 = ttk.Label(self, text='timestep', style="Custom.TLabel")
+        L2 = tk.Label(self, text='timestep')
         L2.grid(row=row, column=3)  # .place(x=140,y=0)
 
         row += 1
@@ -1077,50 +1032,50 @@ class Window(tk.Frame):
         w2.grid(row=row, column=3)
 
         row += 1
-        start = ttk.Button(self, text='|<<', command=self.firstts)
+        start = tk.Button(self, text='|<<', command=self.firstts)
         start.grid(row=row, column=0)
-        play = ttk.Button(self, text='play', command=self.playcallback)
+        play = tk.Button(self, text='play', command=self.playcallback)
         play.grid(row=row, column=1)
         self.play = True
-        stop = ttk.Button(self, text='stop', command=self.stopcallback)
+        stop = tk.Button(self, text='stop', command=self.stopcallback)
         stop.grid(row=row, column=2)
-        end = ttk.Button(self, text='>>|', command=self.lastts)
+        end = tk.Button(self, text='>>|', command=self.lastts)
         end.grid(row=row, column=3)
 
         row += 1  # z  lvel interpolation
         self.CheckFixZ = tk.IntVar(value=0)  # move before  plotAtElems definition to avoid error
-        fixz = ttk.Checkbutton(self, text='interp to z(m):', variable=self.CheckFixZ, style="Custom.TCheckbutton")
+        fixz = tk.Checkbutton(self, text='interp to z(m):', variable=self.CheckFixZ)
         fixz.grid(sticky=tk.W, row=row, column=0)
-        self.fixdepth = ttk.Entry(self, width=8)
+        self.fixdepth = tk.Entry(self, width=8)
         self.fixdepth.grid(row=row, column=1)
 
         self.integrateZ = tk.IntVar(value=0)  # move before  plotAtElems definition to avoid error
-        intz = ttk.Checkbutton(self, text='z int', variable=self.integrateZ, style="Custom.TCheckbutton")
+        intz = tk.Checkbutton(self, text='z int', variable=self.integrateZ)
         intz.grid(sticky=tk.W, row=row, column=2)
 
         self.avgZ = tk.IntVar(value=0)  # move before  plotAtElems definition to avoid error
-        avgz = ttk.Checkbutton(self, text='z avg', variable=self.avgZ, style="Custom.TCheckbutton")
+        avgz = tk.Checkbutton(self, text='z avg', variable=self.avgZ)
         avgz.grid(sticky=tk.W, row=row, column=3)
 
         row += 1  # eval results
         self.CheckEval = tk.IntVar(value=0)
-        fixz = ttk.Checkbutton(self, text='eval:', variable=self.CheckEval, style="Custom.TCheckbutton")
+        fixz = tk.Checkbutton(self, text='eval:', variable=self.CheckEval)
         fixz.grid(sticky=tk.W, row=row, column=0)
-        self.evalex = ttk.Entry(self, width=16)
+        self.evalex = tk.Entry(self, width=16)
         self.evalex.grid(row=row, column=1, columnspan=2)
         self.evalex.insert(8, 'x=x')
 
         self.CheckTavg = tk.IntVar(value=0)
-        fixT = ttk.Checkbutton(self, text='avg time', variable=self.CheckTavg, style="Custom.TCheckbutton")  # ,command=self.Tavg_callback)
+        fixT = tk.Checkbutton(self, text='avg time', variable=self.CheckTavg)  # ,command=self.Tavg_callback)
         fixT.grid(sticky=tk.W, row=row, column=3)
 
         row += 1  # Apperance
-        h1 = ttk.Label(self, text='\n Appearance:', anchor='w', font='Helvetica 10 bold', style="Custom.TLabel")
+        h1 = tk.Label(self, text='\n Appearance:', anchor='w', font='Helvetica 10 bold')
         h1.grid(row=row, column=0)
 
         row += 1  # Clorors
         self.CheckVar = tk.IntVar(value=0)
-        fixbox = ttk.Checkbutton(self, text='fix colorbar', variable=self.CheckVar, style="Custom.TCheckbutton")
+        fixbox = tk.Checkbutton(self, text='fix colorbar', variable=self.CheckVar)
         fixbox.grid(sticky=tk.W, row=row, column=0)
 
         # colormap
@@ -1138,15 +1093,15 @@ class Window(tk.Frame):
         w4.grid(row=row, column=1)
 
         row += 1
-        l4 = ttk.Label(self, text='caxis:', style="Custom.TLabel")
+        l4 = tk.Label(self, text='caxis:')
         l4.grid(row=row + 1, column=0)
-        l5 = ttk.Label(self, text='min:', style="Custom.TLabel")
+        l5 = tk.Label(self, text='min:')
         l5.grid(row=row, column=1)
-        self.minfield = ttk.Entry(self, width=8)
+        self.minfield = tk.Entry(self, width=8)
         self.minfield.grid(row=row + 1, column=1)
-        l6 = ttk.Label(self, text='max:', style="Custom.TLabel")
+        l6 = tk.Label(self, text='max:')
         l6.grid(row=row, column=2)
-        self.maxfield = ttk.Entry(self, width=8)
+        self.maxfield = tk.Entry(self, width=8)
         self.maxfield.grid(row=row + 1, column=2)
 
         row += 2
@@ -1164,117 +1119,85 @@ class Window(tk.Frame):
         self.zmaxvar = tk.StringVar()
         self.zmaxvar.trace("w", self.updatezlim)
 
-        l = ttk.Label(self, text='xaxis:', style="Custom.TLabel")
+        l = tk.Label(self, text='xaxis:')
         l.grid(row=row, column=0)
-        self.xminfield = ttk.Entry(self, width=8, textvariable=self.xminvar)
+        self.xminfield = tk.Entry(self, width=8, textvariable=self.xminvar)
         self.xminfield.grid(row=row, column=1)
-        self.xmaxfield = ttk.Entry(self, width=8, textvariable=self.xmaxvar)
+        self.xmaxfield = tk.Entry(self, width=8, textvariable=self.xmaxvar)
         self.xmaxfield.grid(row=row, column=2)
 
         row += 1
-        l = ttk.Label(self, text='yaxis:', style="Custom.TLabel")
+        l = tk.Label(self, text='yaxis:')
         l.grid(row=row, column=0)
-        self.yminfield = ttk.Entry(self, width=8, textvariable=self.yminvar)
+        self.yminfield = tk.Entry(self, width=8, textvariable=self.yminvar)
         self.yminfield.grid(row=row, column=1)
-        self.ymaxfield = ttk.Entry(self, width=8, textvariable=self.ymaxvar)
+        self.ymaxfield = tk.Entry(self, width=8, textvariable=self.ymaxvar)
         self.ymaxfield.grid(row=row, column=2)
 
         row += 1
-        l = ttk.Label(self, text='zaxis:', style="Custom.TLabel")
+        l = tk.Label(self, text='zaxis:')
         l.grid(row=row, column=0)
-        self.zminfield = ttk.Entry(self, width=8, textvariable=self.zminvar)
+        self.zminfield = tk.Entry(self, width=8, textvariable=self.zminvar)
         self.zminfield.grid(row=row, column=1)
-        self.zmaxfield = ttk.Entry(self, width=8, textvariable=self.zmaxvar)
+        self.zmaxfield = tk.Entry(self, width=8, textvariable=self.zmaxvar)
         self.zmaxfield.grid(row=row, column=2)
 
         row += 1
         self.meshVar = tk.IntVar(value=0)
-        meshbox = ttk.Checkbutton(self, text='show mesh', variable=self.meshVar, command=self.mesh_callback, style="Custom.TCheckbutton")
+        meshbox = tk.Checkbutton(self, text='show mesh', variable=self.meshVar, command=self.mesh_callback)
         meshbox.grid(sticky=tk.W, row=row, column=0)
 
         self.quivVar = tk.IntVar(value=0)
-        quivbox = ttk.Checkbutton(self, text='show arrows', variable=self.quivVar, style="Custom.TCheckbutton")
+        quivbox = tk.Checkbutton(self, text='show arrows', variable=self.quivVar)
         quivbox.grid(sticky=tk.W, row=row, column=1)
 
         self.normVar = tk.IntVar(value=0)
-        normbox = ttk.Checkbutton(self, text='norm arrows', variable=self.normVar, style="Custom.TCheckbutton")
+        normbox = tk.Checkbutton(self, text='norm arrows', variable=self.normVar)
         normbox.grid(sticky=tk.W, row=row, column=2)
 
         row += 1
         self.stream = tk.IntVar(value=0)
-        imstream = ttk.Checkbutton(self, text='stream to images :', variable=self.stream, style="Custom.TCheckbutton")
+        imstream = tk.Checkbutton(self, text='stream to images :', variable=self.stream)
         imstream.grid(sticky=tk.W, row=row, column=0)
         self.picture_dir_set = False
 
         self.maskdry = tk.IntVar(value=1)
-        maskbox = ttk.Checkbutton(self, text='mask dry', variable=self.maskdry, style="Custom.TCheckbutton")
+        maskbox = tk.Checkbutton(self, text='mask dry', variable=self.maskdry)
         maskbox.grid(sticky=tk.W, row=row, column=1)
 
         self.uselonlat = tk.IntVar(value=0)
-        llbox = ttk.Checkbutton(self, text='use lonlat', variable=self.uselonlat, command=self.lonlat_callback, style="Custom.TCheckbutton")
+        llbox = tk.Checkbutton(self, text='use lonlat', variable=self.uselonlat, command=self.lonlat_callback)
         llbox.grid(sticky=tk.W, row=row, column=2)
 
         row += 1
-        h2 = ttk.Label(self, text='\n Extract:       ', anchor='w', font='Helvetica 10 bold', style="Custom.TLabel")
+        h2 = tk.Label(self, text='\n Extract:       ', anchor='w', font='Helvetica 10 bold')
         h2.grid(row=row, column=0)
 
         row += 1
-        l7 = ttk.Label(self, text='extract from:', style="Custom.TLabel")
+        l7 = tk.Label(self, text='extract from:')
         l7.grid(row=row, column=0)
-        self.exfrom = ttk.Entry(self, width=19)
+        self.exfrom = tk.Entry(self, width=19)
         self.exfrom.grid(row=row + 1, column=0, columnspan=2)
         # self.exfrom.insert(8,'0')
         self.exfrom.insert(20, str(self.dates[0])[:19])
-        l8 = ttk.Label(self, text='extract until:', style="Custom.TLabel")
+        l8 = tk.Label(self, text='extract until:')
         l8.grid(row=row, column=1)
-        self.exto = ttk.Entry(self, width=19)
+        self.exto = tk.Entry(self, width=19)
         self.exto.grid(row=row + 1, column=2, columnspan=2)
         # self.exto.insert(8,str(self.nt))
         self.exto.insert(20, str(self.dates[self.nt - 1])[:19])
 
         # debug button
         row += 2
-        debug = ttk.Button(self, text='debug', command=self.debug_callback)
+        debug = tk.Button(self, text='debug', command=self.debug_callback)
         debug.grid(row=row, column=2)
 
         # debug button
-        #debug = tk.Button(self, text='close figs', wraplength=36, command=self.close_callback)
-        debug = ttk.Button(self, text='close figs', command=self.close_callback)
+        debug = tk.Button(self, text='close figs', wraplength=36, command=self.close_callback)
         debug.grid(row=row, column=3)
 
         # initial plot
-        if self.fancy:
-            self.proj=ccrs.PlateCarree()
-            self.fig, self.ax0 = plt.subplots(subplot_kw={'projection': self.proj})
-            landcolor=cfeature.COLORS['land']
-            land_10m = cfeature.NaturalEarthFeature('physical', 'land', '10m',edgecolor='face',facecolor=landcolor)      
-            ocean_10m = cfeature.NaturalEarthFeature('physical', 'ocean', '10m', edgecolor='face',facecolor=[0,0,1])           
-            outproj=self.proj.transform_points(ccrs.Geodetic(),self.lon,self.lat)
-            self.projx,self.projy=outproj[:,0],outproj[:,1]
-            offset=0.2
-            self.zoom_extend=(np.min(self.lon)-offset,np.max(self.lon)+offset, np.min(self.lat)-offset, np.max(self.lat)+offset)            
-            self.ax0.set_extent(self.zoom_extend)
-            self.ax0.add_feature(land_10m,zorder=-2)
-            add_boarders=add_lakes=add_rivers=True
-            if add_boarders:	  
-                self.ax0.add_feature(cfeature.BORDERS, linestyle='-',zorder=-1)
-            if add_lakes:
-                self.ax0.add_feature(cfeature.LAKES, alpha=0.5,zorder=-1)
-            if add_rivers:		
-                self.ax0.add_feature(cfeature.RIVERS,zorder=-1)         
-            self.plotx,self.ploty=self.projx,self.projy                
-            nxticks=nyticks=10
-            xticks=np.unique(np.round(np.linspace((self.zoom_extend[0]),(self.zoom_extend[1]),nxticks),1))
-            yticks=np.unique(np.round(np.linspace((self.zoom_extend[2]),(self.zoom_extend[3]),nyticks),1))
-            self.ax0.set_xticks(xticks, crs=self.proj)
-            self.ax0.set_yticks(yticks, crs=self.proj)
-            lon_formatter = LongitudeFormatter(number_format='.1f',degree_symbol='',dateline_direction_label=True)
-            lat_formatter = LatitudeFormatter(number_format='.1f',degree_symbol='')
-            self.ax0.xaxis.set_major_formatter(lon_formatter)
-            self.ax0.yaxis.set_major_formatter(lat_formatter)
-            
-        else:
-            self.fig, self.ax0 = plt.subplots()         #
+        self.fig, self.ax = plt.subplots()         #
         self.ivs = 1
         self.total_time_index = 0
         self.varname = 'depth'
@@ -1297,27 +1220,17 @@ class Window(tk.Frame):
             plt.set_cmap('deep')
         else:
             plt.set_cmap(plt.cm.jet)
-        
-        if self.fancy:        
-            self.plotx,self.ploty=self.projx,self.projy                   
-        else:            
-            self.plotx, self.ploty = self.x, self.y
-
+        self.plotx, self.ploty = self.x, self.y
         # add plot of bbathymetry
         #self.ph0, self.ch0 = self.schism_plotAtelems(self.depths, add_cb=False)
-        #self.ph0 = self.schism_plotAtelems(self.depths, add_cb=False)
-        #self.ph0.set_cmap('gray')  # testing
-        #self.ph0.set_clim((-4, 4))
-        self.ph = self.schism_plotAtelems(self.depths, add_cb=False)
-        self.ph.set_cmap('gray')  # testing
-        self.ph.set_clim((-4, 4))
-        
+        self.ph0 = self.schism_plotAtelems(self.depths, add_cb=False)
+        self.ph0.set_cmap('gray')  # testing
+        self.ph0.set_clim((-4, 4))
         #self.ph, self.ch = self.schism_plotAtelems(self.nodevalues)
         self.ph = self.schism_plotAtelems(self.nodevalues)
         # self.cmap_callback()
         self.title = self.varname
-        #plt.title(self.varname)
-        self.ax0.set_title(self.varname)
+        plt.title(self.varname)
         # plt.tight_layout()
         # colormap
         if self.use_cmocean:
@@ -1567,45 +1480,22 @@ class Window(tk.Frame):
         self.update_plots()  # self.plot.canvas.draw() #self.update_plots()
         return cmap
 
-#def mesh_callback(self, *args):
-#    """ add mesh to plot """
-#    plt.figure(self.fig0)
-#    if (self.meshVar.get() == 1) and (self.mesh_plot == 0):
-#        self.mesh_plot = 1
-#        plt.gca().add_collection(self.tripc)
-#        if self.hasquads:
-#            plt.gca().add_collection(self.quadpc)
-#    elif (self.meshVar.get() == 0) and (self.mesh_plot != 0):
-#        self.tripc.remove()
-#        if self.hasquads:
-#            self.quadpc.remove()
-#        self.mesh_plot = 0
-#    self.update_plots()
-#
-
     def mesh_callback(self, *args):
-        """ Add or remove mesh from the plot """
-        # Use the stored reference to the Axes object directly (self.ax0 for self.fig0)
-        ax = self.ax0  # Assuming self.ax0 is the Axes object for self.fig0
-    
-        # Check if meshVar is set to 1 (to add the mesh)
+        """ add mesh to plot """
+        plt.figure(self.fig0)
         if (self.meshVar.get() == 1) and (self.mesh_plot == 0):
-            # Add mesh collections to the plot
             self.mesh_plot = 1
-            ax.add_collection(self.tripc)
+            plt.gca().add_collection(self.tripc)
             if self.hasquads:
-                ax.add_collection(self.quadpc)
-        # Check if meshVar is set to 0 (to remove the mesh)
+                plt.gca().add_collection(self.quadpc)
         elif (self.meshVar.get() == 0) and (self.mesh_plot != 0):
-            # Remove the mesh collections from the plot
             self.tripc.remove()
             if self.hasquads:
                 self.quadpc.remove()
             self.mesh_plot = 0
-    
-        # Update the plot efficiently after adding/removing the collections
         self.update_plots()
-            # this was embedded in stp clalback and variable trace
+
+        # this was embedded in stp clalback and variable trace
 
     def CheckDiff_callback(self, *args):
         """ toggle plot setup or differences """
@@ -1624,26 +1514,14 @@ class Window(tk.Frame):
         else:
             self.plotx, self.ploty = self.x, self.y
         plt.figure(self.fig0)
-        #plt.clf()
-        #self.ch.remove()
-        self.ax0.cla()
-        #self.ax0
+        plt.clf()
         #self.ph0, self.ch0 = self.schism_plotAtelems(self.depths, add_cb=False)
-        #self.ph0 = self.schism_plotAtelems(self.depths, add_cb=False)        
-        #self.ph0.set_array(self.depths[self.faces[:, :3]].mean(axis=1))  # noetig ? workaround
-        #self.ph0.set_cmap('gray')  # testing ad bathymetry 
-        #self.ph0.set_clim((-4, 4))
+        self.ph0 = self.schism_plotAtelems(self.depths, add_cb=False)        
+        self.ph0.set_array(self.depths[self.faces[:, :3]].mean(axis=1))  # noetig ? workaround
+        self.ph0.set_cmap('gray')  # testing ad bathymetry 
+        self.ph0.set_clim((-4, 4))
         #self.ph, self.ch = self.schism_plotAtelems(self.nodevalues)
-    # Safely remove the previous colorbar if it exists
-        #if self.ch is not None:
-        #    self.ch.remove()
-        #    self.ch = None  # Reset the colorbar reference to avoid potential reuse        
-            #self.ch.remove()
-        ph0 = self.schism_plotAtelems(self.depths[self.faces[:, :3]].mean(axis=1), add_cb=False,overwrite=False)
-        ph0.set_cmap('gray')
-        ph0.set_clim((-4, 4))
-        self.ph = self.schism_plotAtelems(self.nodevalues, add_cb=False,overwrite=False)        
-        self.ch.update_normal(self.ph)  # Update colorbar to match new plot
+        self.ph, = self.schism_plotAtelems(self.nodevalues)        
         self.schism_updateAtelems()
 
     # def Tavg_callback(self,*args):
@@ -1652,52 +1530,24 @@ class Window(tk.Frame):
     #    else:
     #        self.plotx,self.ploty=self.x,self.y
 
-    #def ask_coordinates(self, n=-1, coords=None, interp=False):
-    #    plt.figure(self.fig0)
-    #    if coords == None:
-    #        plt.title("click coordinates in Fig.1. Press ESC when finished")
-    #        print("click coordinates in Fig.1. Press ESC when finished")
-    #        # self.pt0i=self.pt0 # keep track of point annotations
-    #        self.update_plots()
-    #        plt.figure(self.fig0)
-    #        self.coords = plt.ginput(n, show_clicks='True')
-    #        plt.title(self.titlegen(self.lvl))
-    #    else:
-    #        self.coords = coords
-    #    self.pt0i = self.pt0  # keep track of point
-    #    # try:
-    #    #	self.pt0i=self.plot_windows[self.activefig]['p0']
-    #    # except:
-    #    #	self.activefig=0
-    #    #	self.pt0i=self.plot_windows[self.activefig]['p0']
-    #    
-    #    
     def ask_coordinates(self, n=-1, coords=None, interp=False):
-        # Directly use the stored Axes object, no need to switch figures
-        ax = self.ax0  # Assuming self.ax0 is the Axes object for self.fig0
-    
-        # If no coordinates are provided, ask for user input
-        if coords is None:
-            # Set the title of the main plot
-            ax.set_title("Click coordinates in Fig.1. Press ESC when finished")
-            print("Click coordinates in Fig.1. Press ESC when finished")
-            
-            # Update the plot to reflect the title change
-            self.update_plots()  # Efficiently refresh the plot
-    
-            # Capture user clicks using ginput, attached to the correct figure
-            self.coords = plt.ginput(n, show_clicks=True)  # Capture clicks
-    
-            # Restore the original title of the plot after getting the input
-            ax.set_title(self.titlegen(self.lvl))
+        plt.figure(self.fig0)
+        if coords == None:
+            plt.title("click coordinates in Fig.1. Press ESC when finished")
+            print("click coordinates in Fig.1. Press ESC when finished")
+            # self.pt0i=self.pt0 # keep track of point annotations
+            self.update_plots()
+            plt.figure(self.fig0)
+            self.coords = plt.ginput(n, show_clicks='True')
+            plt.title(self.titlegen(self.lvl))
         else:
-            # If coordinates are provided, use them directly
             self.coords = coords
-    
-        # Update pt0i to keep track of the point
-        self.pt0i = self.pt0  # Store the current points (if pt0 is already defined)
-            
-        
+        self.pt0i = self.pt0  # keep track of point
+        # try:
+        #	self.pt0i=self.plot_windows[self.activefig]['p0']
+        # except:
+        #	self.activefig=0
+        #	self.pt0i=self.plot_windows[self.activefig]['p0']
         if interp:  # interpolate coordinates for transect
 
             xy = np.asarray(self.coords)
@@ -1705,7 +1555,7 @@ class Window(tk.Frame):
             dr = np.sqrt((dxdy ** 2).sum(axis=1))
             r = dxdy[:, 1] / dxdy[:, 0]
 
-            # self.minavgdist=float(input('Enter distance [m ord degree if ics=2] for between point interpolation:'))
+            # self.minavgdist=np.float(input('Enter distance [m ord degree if ics=2] for between point interpolation:'))
             self.minavgdist = tk.simpledialog.askfloat(title='interp dx',
                                                        prompt='Enter distance [hgrid.gr3 units i.e. m] for between point interpolation: [0:= keep points]',
                                                        initialvalue=250, minvalue=0)
@@ -1797,8 +1647,8 @@ class Window(tk.Frame):
 
     def read_time_selection(self):
         np.datetime64(self.exfrom.get()) - self.dates[0]
-        i0 = int((np.datetime64(self.exfrom.get()) - self.dates[0]) / self.dt)
-        i1 = int((np.datetime64(self.exto.get()) - self.dates[0]) / self.dt)
+        i0 = np.int((np.datetime64(self.exfrom.get()) - self.dates[0]) / self.dt)
+        i1 = np.int((np.datetime64(self.exto.get()) - self.dates[0]) / self.dt)
         return i0, i1
 
     def timeseries(self, coords=None):
@@ -1919,6 +1769,7 @@ class Window(tk.Frame):
         fig2.clf()
         if self.ivs == 1:
             plt.title(self.titlegen(''))
+            # plt.title(str(self.reftime + dt.timedelta(seconds=int(self.ncs[self.filetag]['time'][self.total_time_index].values))))
             plt.plot(ps, zs, '.-')
             plt.ylabel('depth / m')
             plt.xlabel(self.varname)
@@ -2109,7 +1960,7 @@ class Window(tk.Frame):
             plt.ylabel('depth / m')
             plt.plot(self.xs[:, 0], self.zi[:, 0], 'k', linewidth=2)
             ch = plt.colorbar()
-            self.ch.set_label(self.varname)
+            ch.set_label(self.varname)
             if self.meshVar.get():
                 plt.plot(self.xs, self.zi, 'k', linewidth=0.2)
         if len(self.nclist) > 1:
@@ -2331,7 +2182,7 @@ class Window(tk.Frame):
 
             ax3 = plt.subplot(3, 1, 3)
             ph, ch = self.plot_transect(np.sqrt(self.dataTrans[0, :, :] ** 2 + self.dataTrans[1, :, :] ** 2), is2d)
-            self.ch.set_label(self.varname + comps[-1])
+            ch.set_label(self.varname + comps[-1])
             if self.calc_transport: #and iplt == 1:
                 plt.text(self.xs.min(), self.zi.min() * 0.9,'Qtot:{:0.2f}\nQpos:{:0.2f}\nQneg:{:0.2f}\n m^3/s'.format(Qi, Qpos, Qneg))
 
@@ -2364,7 +2215,7 @@ class Window(tk.Frame):
                                w[::dx, ::dy], color='w')
 
                 plt.tick_params(axis='x', labelbottom='off')
-                self.ch.set_label(self.varname + comps[iplt])
+                ch.set_label(self.varname + comps[iplt])
                 plt.gca().set_ylim(ylim)
                 # plt.clim(self.clim)
                 plt.xlim((self.xs.min(), self.xs.max()))
@@ -2404,36 +2255,18 @@ class Window(tk.Frame):
         self.stack.set(self.stacks[self.nstacks - 1])
         self.ti_tk.set(self.stack_size - 1)
 
-    #def updateaxlim(self, *args):
-    #    plt.figure(self.fig0)
-    #    axes = plt.gca()
-    #    xmin, xmax = self.xminfield.get(), self.xmaxfield.get()
-    #    ymin, ymax = self.yminfield.get(), self.ymaxfield.get()
-    #    if (len(xmax) * len(ymax) * len(ymin) * len(ymax)) > 0:
-    #        axes.set_xlim([float(xmin), float(xmax)])
-    #        axes.set_ylim([float(ymin), float(ymax)])
-    #        self.update_plots()
-
     def updateaxlim(self, *args):
-        # Use the stored reference to the axes object directly
-        axes = self.ax0  # Assuming `self.ax0` is the Axes object for `self.fig0`
-    
-        # Get the values from the GUI inputs
+        plt.figure(self.fig0)
+        axes = plt.gca()
         xmin, xmax = self.xminfield.get(), self.xmaxfield.get()
         ymin, ymax = self.yminfield.get(), self.ymaxfield.get()
-    
-        xmin, xmax, ymin, ymax = [float(value) for value in [xmin, xmax, ymin, ymax]]
-        # Ensure all fields have valid inputs before setting the limits
-        if all([xmin, xmax, ymin, ymax]):  # Check if none of the inputs are empty
-            #axes.set_xlim([float(xmin), float(xmax)])
-            #axes.set_ylim([float(ymin), float(ymax)])
-            axes.set_xlim([xmin, xmax])
-            axes.set_ylim([ymin, ymax])    
-            # Call the function to update the plot
+        if (len(xmax) * len(ymax) * len(ymin) * len(ymax)) > 0:
+            axes.set_xlim([np.double(xmin), np.double(xmax)])
+            axes.set_ylim([np.double(ymin), np.double(ymax)])
             self.update_plots()
 
-
     def updatezlim(self, *args):
+        # if self.fig1 in plt.get_fignums() and (self.extract!=self.timeseries):
         if self.activefig in plt.get_fignums() and (self.extract != self.timeseries):
             zmin, zmax = self.zminfield.get(), self.zmaxfield.get()
             if (len(zmax) * len(zmin)) > 0:
@@ -2442,7 +2275,7 @@ class Window(tk.Frame):
                 if self.ivs == 1:
                     axes = plt.gca()
                     cf.get_axes()
-                    axes.set_ylim([float(zmin), float(zmax)])
+                    axes.set_ylim([np.double(zmin), np.double(zmax)])
                 else:
                     if self.extract == self.profiles:
                         m, n = 1, 3
@@ -2453,7 +2286,12 @@ class Window(tk.Frame):
                     ax = cf.get_axes()
                     for axi in ax:
                         if not 'colorbar' in axi.get_label():
-                            axi.set_ylim([float(zmin), float(zmax)])
+                            axi.set_ylim([np.double(zmin), np.double(zmax)])
+                    # for i in range(1,4):
+                    # plt.subplot(m,n,i)
+                    #    axes = plt.gca()
+                    #    cf.get_axes()
+                    #    axes
                 self.update_plots()
 
     def savenodevalues(self, *args):
@@ -2567,14 +2405,10 @@ class Window(tk.Frame):
         exit()
 
 
-mycolor = '#%02x%02x%02x' % (83,104,120)  # set your favourite rgb color
-
-
 # launch gui
 root = tk.Tk()
-root.configure(bg=mycolor) # different bg color
-#root.geometry("420x460")
-root.geometry("430x470")
+root.geometry("420x460")
+# root.geometry("420x480")
 root.grid_rowconfigure(12, minsize=100)
 root.grid_columnconfigure(4, minsize=100)
 if __name__ == "__main__":
@@ -2582,3 +2416,41 @@ if __name__ == "__main__":
     root.title('schout_view')
     root.mainloop()
 
+
+
+## suggestions chat gpt:
+#
+#import numpy as np
+#import matplotlib.pyplot as plt
+#from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
+#
+#def schism_plotAtelems(self, nodevalues, add_cb=True):
+#    # Create the figure and axis once, don't recreate them on every update
+#    self.fig, self.ax = plt.subplots()
+#    self.canvas = FigureCanvasTkAgg(self.fig, master=self.tk_window)  # tk_window is your Tkinter window
+#    self.ph = self.ax.tripcolor(self.plotx, self.ploty, self.faces[:, :3],
+#                                facecolors=self.nodevalues[self.faces[:, :3]].mean(axis=1),
+#                                shading='flat', alpha=None)
+#    self.colorbar = self.fig.colorbar(self.ph, ax=self.ax) if add_cb else None  # Add colorbar if needed
+#    
+#    # Render the initial plot
+#    self.canvas.draw()
+#    # Save the background to optimize for blitting
+#    self.background = self.canvas.copy_from_bbox(self.ax.bbox)
+#
+#def update_plot(self):
+#    # Update the face colors based on the masked array
+#    elemvalues = np.ma.masked_array(self.nodevalues[self.faces[:, :3]].mean(axis=1),
+#                                    mask=(self.dryelems == 1) * self.maskdry.get())
+#    self.ph.set_array(elemvalues)
+#    
+#    # Restore the background and only redraw the updated parts
+#    self.canvas.restore_region(self.background)
+#    self.ax.draw_artist(self.ph)
+#    self.canvas.blit(self.ax.bbox)
+#    self.canvas.flush_events()
+#
+#    # Optionally, update the colorbar
+#    if self.colorbar:
+#        self.colorbar.update_normal(self.ph)
+#
