@@ -871,13 +871,18 @@ class Window(tk.Frame):
         self.active_setup = 0
         self.ncs = self.nclist[0]
         # if self.newio<2:
-        try:
+        
+        if type(self.ncs[self.filetag]['time'][0].values) == np.datetime64:
+            self.newio = 2
+            self.dates = self.ncs[self.filetag]['time'].values
+        else:
+        #try:
             self.dates = np.asarray(
                 [self.reftime + dt.timedelta(seconds=ti) for ti in self.ncs[self.filetag]['time'].values],
                 np.datetime64)
-        except:
-            self.newio = 2
-            self.dates = self.ncs[self.filetag]['time'].values
+        #except:
+        #    self.newio = 2
+        #    self.dates = self.ncs[self.filetag]['time'].values
         self.dt = self.dates[1] - self.dates[0]
         # self.reftime=dt.datetime.strptime(self.nc['time'].units[14:33],'%Y-%m-%d %H:%M:%S')
         self.varlist = list(np.sort(self.varlist))
