@@ -832,9 +832,9 @@ class Window(tk.Frame):
             ncdiff = {}
             for key in self.nclist[0].keys():
                 if key=='out2d':
-                    ncdiff[key] = xr.Dataset({var: self.nclist[isetup][key][var] - self.nclist[0][key][var] for var in self.nclist[isetup][key].data_vars})
+                    ncdiff[key] = xr.Dataset({var: self.nclist[isetup][key][var] - self.nclist[0][key][var] for var in self.nclist[isetup][key].data_vars if var != 'SCHISM_hgrid' })
 
-                if type(self.nclist[isetup][key]) == dict:
+                elif type(self.nclist[isetup][key]) == dict:
                     ncdiff[key] = {key: self.nclist[isetup][key][key] - self.nclist[0][key][key]}  # check
                 else:
                     if ('zcoor' in key.lower()) or ('zcor' in key.lower()):
