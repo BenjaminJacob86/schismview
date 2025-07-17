@@ -832,7 +832,7 @@ class Window(tk.Frame):
             ncdiff = {}
             for key in self.nclist[0].keys():
                 if key=='out2d':
-                    out2ddiff = xr.Dataset({var: self.nclist[isetup][key][var] - self.nclist[0][key][var] for var in self.nclist[isetup][key].data_vars})
+                    ncdiff[key] = xr.Dataset({var: self.nclist[isetup][key][var] - self.nclist[0][key][var] for var in self.nclist[isetup][key].data_vars})
 
                 if type(self.nclist[isetup][key]) == dict:
                     ncdiff[key] = {key: self.nclist[isetup][key][key] - self.nclist[0][key][key]}  # check
